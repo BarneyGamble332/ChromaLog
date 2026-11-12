@@ -138,3 +138,7 @@ dialog p { margin: 0; }
 tr.rowsel td { background: var(--bg); }
 tr.click { cursor: pointer; }
 #cChart { margin-top: 12px; height: 260px; }
+.cmp { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; max-height: 220px; overflow-y: auto; }
+.cmp label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.cmp i { width: 14px; height: 3px; border-radius: 2px; flex: none; }
+.cmp span { overflow-wrap: anywhere; }

@@ -39,7 +39,7 @@ class Plot {
       if (this.ptrs.size === 1) {
         let pi = this.rects.findIndex(r => e.offsetY >= r.y && e.offsetY <= r.y + r.h); if (pi < 0) pi = 0;
         /* Ziehen = Zoomfenster; mit Umschalttaste oder mittlerer Maustaste = verschieben */
-        this.drag = { mode: (e.shiftKey || e.button === 1) ? 'pan' : 'box', touch: e.pointerType !== 'mouse', pi, px: e.offsetX, py: e.offsetY, x0: s.x0, x1: s.x1, moved: false };
+        this.drag = { mode: (e.shiftKey || e.button === 1) ? 'pan' : (this.rangeMode && pi === 0) ? 'range' : 'box', touch: e.pointerType !== 'mouse', pi, px: e.offsetX, py: e.offsetY, x0: s.x0, x1: s.x1, moved: false };
       } else if (this.ptrs.size === 2) { const v = [...this.ptrs.values()]; this.pinch = { d: Math.max(10, Math.abs(v[0] - v[1])), x0: s.x0, x1: s.x1, cx: this.xAt((v[0] + v[1]) / 2) }; this.drag = null; this.box = null; }
     });
     cv.addEventListener('pointermove', e => {
@@ -57,8 +57,8 @@ class Plot {
           else {
             const r = this.rects[g.pi], cl = (v, a, b) => Math.max(a, Math.min(b, v));
             const xa = cl(g.px, r.x, r.x + r.w), xb = cl(e.offsetX, r.x, r.x + r.w);
-            const ya = g.touch ? r.y : cl(g.py, r.y, r.y + r.h), yb = g.touch ? r.y + r.h : cl(e.offsetY, r.y, r.y + r.h);
-            this.box = { x: Math.min(xa, xb), y: Math.min(ya, yb), w: Math.abs(xb - xa), h: Math.abs(yb - ya), pi: g.pi, full: g.touch };
+            const full = g.touch || g.mode === 'range', ya = full ? r.y : cl(g.py, r.y, r.y + r.h), yb = full ? r.y + r.h : cl(e.offsetY, r.y, r.y + r.h);
+            this.box = { x: Math.min(xa, xb), y: Math.min(ya, yb), w: Math.abs(xb - xa), h: Math.abs(yb - ya), pi: g.pi, full, range: g.mode === 'range' };
             this.cur = null; this.draw();
           }
         }
@@ -68,7 +68,8 @@ class Plot {
       this.ptrs.delete(e.pointerId); if (this.ptrs.size < 2) this.pinch = null;
       if (!this.ptrs.size) {
         const bx = this.box; this.box = null; this.drag = null;
-        if (bx && e.type === 'pointerup' && bx.w > 8) {
+        if (bx && bx.range) { if (e.type === 'pointerup' && bx.w > 3 && this.onRange) this.onRange(this.xAt(bx.x), this.xAt(bx.x + bx.w)); else this.draw(); }
+        else if (bx && e.type === 'pointerup' && bx.w > 8) {
           const sc = this.scales[bx.pi], r = this.rects[bx.pi];
           const ySel = (!bx.full && bx.h > 8 && sc) ? { pane: bx.pi, lo: sc.lo + (r.y + r.h - bx.y - bx.h) / r.h * (sc.hi - sc.lo), hi: sc.lo + (r.y + r.h - bx.y) / r.h * (sc.hi - sc.lo) } : undefined;
           this.onView(this.xAt(bx.x), this.xAt(bx.x + bx.w), ySel);

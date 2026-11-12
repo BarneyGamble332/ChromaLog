@@ -28,7 +28,7 @@ function rollExt(a, w, isMin) {
 }
 function median(arr) { const s = Array.from(arr).sort((x, y) => x - y), m = s.length >> 1; return s.length ? (s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) : 0; }
 
-function analyze(tMin, yIn, params, compounds) {
+function analyze(tMin, yIn, params, compounds, edits) {
   const p = Object.assign({}, ANALYSIS_DEFAULTS, params || {});
   const n = yIn.length, res = { params: p, peaks: [], noise: 0, baseline: [] };
   if (n < 30) return res;
@@ -47,6 +47,33 @@ function analyze(tMin, yIn, params, compounds) {
   const corr = new Float64Array(n);
   for (let i = 0; i < n; i++) corr[i] = ys[i] - base[i];
   const thr = Math.max(p.sn * 3 * sigma, 1e-6), endThr = Math.max(0.6 * sigma, 1e-7);
+
+  /* Einen Peak zwischen den Punkten s und e vermessen; Basislinie ist die Gerade von a nach b */
+  const measure = (s, e, ap, a, b) => {
+    const line = i => ys[a] + (ys[b] - ys[a]) * (i - a) / Math.max(1, b - a);
+    let area = 0;
+    for (let i = s; i < e; i++) area += ((y[i] - line(i)) + (y[i + 1] - line(i + 1))) / 2 * (ts(i + 1) - ts(i));
+    const hgt = ys[ap] - line(ap);
+    if (hgt <= 0 || area <= 0) return null;
+    let rt = ts(ap);
+    if (ap > 0 && ap < n - 1) { const y0 = ys[ap - 1], y1 = ys[ap], y2 = ys[ap + 1], den = y0 - 2 * y1 + y2; if (den < 0) rt += 0.5 * (y0 - y2) / den * dt; }
+    const cross = (frac, dir) => {
+      const lvl = hgt * frac; let i = ap;
+      while (i !== (dir < 0 ? s : e) && (ys[i] - line(i)) > lvl) i += dir;
+      const vi = ys[i] - line(i);
+      if (vi > lvl || i === ap) return null;
+      const j = i - dir, vj = ys[j] - line(j);
+      return ts(j) + (ts(i) - ts(j)) * (vj - lvl) / Math.max(1e-12, vj - vi);
+    };
+    const l5 = cross(0.5, -1), r5 = cross(0.5, 1), l05 = cross(0.05, -1), r05 = cross(0.05, 1);
+    const w50 = (l5 != null && r5 != null) ? r5 - l5 : null;
+    return {
+      rt: rt / 60, start: tMin[s], end: tMin[e], yStart: line(s), yEnd: line(e), area, height: hgt, w50,
+      plates: w50 ? 5.545 * Math.pow(rt / w50, 2) : null,
+      tailing: (l05 != null && r05 != null && rt - l05 > 0) ? (r05 - l05) / (2 * (rt - l05)) : null,
+      sn: sigma > 0 ? hgt / (3 * sigma) : null, rs: null, areaPct: 0, name: '', manual: false
+    };
+  };
 
   /* Bereiche über der Schwelle, nach außen bis zur Basislinie erweitert */
   const regs = [];
@@ -81,34 +108,20 @@ function analyze(tMin, yIn, params, compounds) {
       else if (corr[cur] > corr[prev]) apexes[apexes.length - 1] = cur;
     }
     cuts.push(b);
-    const line = i => ys[a] + (ys[b] - ys[a]) * (i - a) / Math.max(1, b - a);
-    for (let k = 0; k < apexes.length; k++) {
-      const s = cuts[k], e = cuts[k + 1], ap = apexes[k];
-      let area = 0;
-      for (let i = s; i < e; i++) area += ((y[i] - line(i)) + (y[i + 1] - line(i + 1))) / 2 * (ts(i + 1) - ts(i));
-      const hgt = ys[ap] - line(ap);
-      if (hgt <= 0 || area <= 0) continue;
-      /* Scheitel per Parabel verfeinern */
-      let rt = ts(ap);
-      if (ap > 0 && ap < n - 1) { const y0 = ys[ap - 1], y1 = ys[ap], y2 = ys[ap + 1], den = y0 - 2 * y1 + y2; if (den < 0) rt += 0.5 * (y0 - y2) / den * dt; }
-      const cross = (frac, dir) => {
-        const lvl = hgt * frac; let i = ap;
-        while (i !== (dir < 0 ? s : e) && (ys[i] - line(i)) > lvl) i += dir;
-        const vi = ys[i] - line(i);
-        if (vi > lvl) return null;
-        const j = i - dir, vj = ys[j] - line(j);
-        return ts(j) + (ts(i) - ts(j)) * (vj - lvl) / Math.max(1e-12, vj - vi);
-      };
-      const l5 = cross(0.5, -1), r5 = cross(0.5, 1), l05 = cross(0.05, -1), r05 = cross(0.05, 1);
-      const w50 = (l5 != null && r5 != null) ? r5 - l5 : null;
-      res.peaks.push({
-        rt: rt / 60, start: tMin[s], end: tMin[e], yStart: line(s), yEnd: line(e), area, height: hgt, w50,
-        plates: w50 ? 5.545 * Math.pow(rt / w50, 2) : null,
-        tailing: (l05 != null && r05 != null && rt - l05 > 0) ? (r05 - l05) / (2 * (rt - l05)) : null,
-        sn: sigma > 0 ? hgt / (3 * sigma) : null, rs: null, areaPct: 0, name: ''
-      });
-    }
+    for (let k = 0; k < apexes.length; k++) { const pk = measure(cuts[k], cuts[k + 1], apexes[k], a, b); if (pk) res.peaks.push(pk); }
   }
+  /* Änderungen von Hand: entfernte Peaks und selbst gezogene Integrationsgrenzen */
+  const ed = edits || {}, idx = tm => { let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (tMin[m] < tm) lo = m + 1; else hi = m; } return lo; };
+  (ed.removed || []).forEach(r => { res.peaks = res.peaks.filter(q => !(q.rt >= r.start && q.rt <= r.end)); });
+  (ed.manual || []).forEach(mn => {
+    const s = idx(Math.min(mn.start, mn.end)), e = idx(Math.max(mn.start, mn.end));
+    if (e - s < 3) return;
+    res.peaks = res.peaks.filter(q => !(q.rt >= tMin[s] && q.rt <= tMin[e]));
+    let ap = s, best = -Infinity;
+    for (let i = s; i <= e; i++) { const v = ys[i] - (ys[s] + (ys[e] - ys[s]) * (i - s) / (e - s)); if (v > best) { best = v; ap = i; } }
+    const pk = measure(s, e, ap, s, e); if (pk) { pk.manual = true; pk.mStart = mn.start; pk.mEnd = mn.end; res.peaks.push(pk); }
+  });
+  res.peaks.sort((x, z) => x.rt - z.rt);
   const tot = res.peaks.reduce((s, q) => s + q.area, 0);
   res.peaks.forEach((q, i) => {
     q.areaPct = tot ? 100 * q.area / tot : 0;

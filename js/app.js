@@ -21,7 +21,7 @@ const S = {
   methods: [], runs: [], auditLog: [], dev: null, last: null, stage1: false, led: true,
   mon: { t: [], uv: [], cond: [], press: [], temp: [], b: [] }, phase: 'idle', run: null,
   view: { auto: true }, aView: { auto: true }, aRun: null, aRes: null, editM: null, editDirty: false,
-  console: [], dirty: true, tab: 'messen', cal: { excluded: {}, sel: null, res: null }
+  console: [], dirty: true, tab: 'messen', cal: { excluded: {}, sel: null, res: null }, aEdits: { manual: [], removed: [] }, aOverlay: [], aManualMode: false
 };
 let plotLive, plotAna, plotGrad, plotCal;
 
@@ -294,7 +294,8 @@ async function importRun(file) {
 function fillRunSelect() { $('#aSel').innerHTML = S.runs.map(r => '<option value="' + r.id + '">' + esc(r.name + ' · ' + dateStr(r.startedAt)) + '</option>').join(''); if (S.aRun) $('#aSel').value = S.aRun.id; }
 function openAnalysis(id) {
   const r = S.runs.find(q => q.id === id); if (!r) return;
-  S.aRun = r; S.aView = { auto: true };
+  S.aRun = r; S.aView = { auto: true }; S.aOverlay = S.aOverlay.filter(q => q !== id);
+  S.aEdits = r.analysis && r.analysis.edits ? clone(r.analysis.edits) : { manual: [], removed: [] };
   const p = (r.analysis && r.analysis.params) || ANALYSIS_DEFAULTS;
   $('#aSn').value = p.sn; $('#aMinW').value = p.minWidth; $('#aBase').value = p.baseWin; $('#aSmooth').value = p.smooth;
   integrate(); fillRunSelect();
@@ -302,29 +303,36 @@ function openAnalysis(id) {
 function integrate() {
   const r = S.aRun; if (!r) return;
   const p = { sn: +$('#aSn').value || 5, minWidth: +$('#aMinW').value || 3, baseWin: +$('#aBase').value || 1.5, smooth: +$('#aSmooth').value || 0 };
-  S.aRes = analyze(r.data.t, r.data.uv, p, r.method.compounds); renderAnalysis();
+  S.aRes = analyze(r.data.t, r.data.uv, p, r.method.compounds, S.aEdits); renderAnalysis();
 }
 function renderAnalysis() {
   const r = S.aRun, res = S.aRes;
   if (!r || !res) { $('#peakTable').innerHTML = '<p class="hint">' + t('a_none') + '</p>'; $('#aMeta').innerHTML = ''; if (plotAna) { plotAna.spec = null; const c = $('#cvAna'); c.getContext('2d').clearRect(0, 0, c.width, c.height); } return; }
   const n = v => '<td class="n">' + v + '</td>';
   $('#peakTable').innerHTML = !res.peaks.length ? '<p class="hint">' + t('a_nopeaks') + '</p>' :
-    '<table><tr><th class="n">#</th><th>' + t('p_name') + '</th><th class="n">' + t('p_conc') + '</th>' + ['p_rt', 'p_area', 'p_areap', 'p_height', 'p_w', 'p_n', 'p_tail', 'p_rs', 'p_sn'].map(k => '<th class="n">' + t(k) + '</th>').join('') + '</tr>' +
-    res.peaks.map((p, i) => '<tr>' + n(i + 1) + '<td>' + (p.name ? esc(p.name) : '<span class="hint">' + t('unknown') + '</span>') + '</td>' + n(concCell(r, p)) + n(fmt(p.rt, 3)) + n(fmt(p.area, 1)) + n(fmt(p.areaPct, 1)) + n(fmt(p.height, 2)) +
-      n(fmt(p.w50, 1)) + n(fmt(p.plates, 0)) + n(fmt(p.tailing, 2)) + n(fmt(p.rs, 1)) + n(fmt(p.sn, 0)) + '</tr>').join('') + '</table>' +
+    '<table><tr><th class="n">#</th><th>' + t('p_name') + '</th><th class="n">' + t('p_conc') + '</th>' + ['p_rt', 'p_area', 'p_areap', 'p_height', 'p_w', 'p_n', 'p_tail', 'p_rs', 'p_sn'].map(k => '<th class="n">' + t(k) + '</th>').join('') + '<th></th></tr>' +
+    res.peaks.map((p, i) => '<tr>' + n(i + 1) + '<td>' + (p.name ? esc(p.name) : '<span class="hint">' + t('unknown') + '</span>') + (p.manual ? '<span class="badge">' + t('a_man') + '</span>' : '') + '</td>' + n(concCell(r, p)) + n(fmt(p.rt, 3)) + n(fmt(p.area, 1)) + n(fmt(p.areaPct, 1)) + n(fmt(p.height, 2)) +
+      n(fmt(p.w50, 1)) + n(fmt(p.plates, 0)) + n(fmt(p.tailing, 2)) + n(fmt(p.rs, 1)) + n(fmt(p.sn, 0)) + '<td><button type="button" class="btn small" data-rmpk="' + i + '" title="' + t('a_remove') + '" aria-label="' + t('a_remove') + '">✕</button></td></tr>').join('') + '</table>' +
     (res.peaks.some(p => { const c = concOf(r, p); return c && c.out; }) ? '<p class="hint">' + t('c_outside') + '</p>' : '');
   const row = (k, v, mono) => '<dt>' + t(k) + '</dt><dd' + (mono ? ' class="mono"' : '') + '>' + v + '</dd>';
   $('#aMeta').innerHTML = row('sample', esc(r.name) + ' (' + t('ty_' + r.type) + (r.conc != null ? ', ' + fmt(r.conc, 1) + ' mg/l' : '') + ')') + row('method', esc(r.method.name)) + row('a_started', esc(dateStr(r.startedAt))) +
     (r.site ? row('site', esc(r.site)) : '') + row('vol', fmt(r.vol, 0) + ' µl') + row('a_points', fmt(r.data.t.length, 0)) + row('a_noise', fmt(res.noise, 3) + ' mAU') + row('a_hash', r.hash ? r.hash.slice(0, 16) + '…' : '–', true);
+  $('#aManual').classList.toggle('on', S.aManualMode); $('#aHint').textContent = t(S.aManualMode ? 'a_manual_hint' : 'hint_zoom');
+  $('#aClear').disabled = !(S.aEdits.manual.length || S.aEdits.removed.length);
+  $('#aCompare').innerHTML = S.runs.filter(q => q.id !== r.id).slice(0, 30).map(q => { const k = S.aOverlay.indexOf(q.id);
+    return '<label><input type="checkbox" data-cmp="' + q.id + '"' + (k >= 0 ? ' checked' : '') + '><i style="background:' + (k >= 0 ? plotAna.css(CMP_COLORS[k % CMP_COLORS.length]) : 'transparent') + '"></i><span>' + esc(q.name) + ' · ' + esc(dateStr(q.startedAt)) + '</span></label>'; }).join('');
   drawAna();
 }
+const CMP_COLORS = ['--c-grad', '--c-press', '--c-temp', '--c-cond', '--muted'];
 function drawAna() {
   const r = S.aRun, res = S.aRes; if (!r || !res || S.tab !== 'auswertung') return;
   const css = n => plotAna.css(n), d = r.data;
   let x0 = 0, x1 = Math.max(d.t[d.t.length - 1] || 1, 0.1); if (!S.aView.auto) { x0 = S.aView.x0; x1 = S.aView.x1; }
   const peaks = res.peaks.map(p => ({ start: p.start, end: p.end, yStart: p.yStart, yEnd: p.yEnd, rt: p.rt, name: p.name, yApex: d.uv[Math.min(d.uv.length - 1, lowerBound(d.t, p.rt))] }));
+  plotAna.rangeMode = S.aManualMode;
   plotAna.set({ x0, x1, xLabel: t('min'), xUnit: t('min'), panes: [
-    { h: 3, left: yLim(S.aView, 0, { label: t('ch_uv') + ' [mAU]', minSpan: 5 }), series: [{ x: d.t, y: d.uv, color: css('--c-uv'), width: 1.5, label: 'UV', dec: 2 }], peaks },
+    { h: 3, left: yLim(S.aView, 0, { label: t('ch_uv') + ' [mAU]', minSpan: 5 }), series: [{ x: d.t, y: d.uv, color: css('--c-uv'), width: 1.5, label: 'UV', dec: 2 }].concat(
+      S.aOverlay.map((id, k) => { const q = S.runs.find(z => z.id === id); return q ? { x: q.data.t, y: q.data.uv, color: css(CMP_COLORS[k % CMP_COLORS.length]), width: 1.1, label: q.name.slice(0, 14), dec: 2 } : null; }).filter(Boolean)), peaks },
     { h: 1, left: yLim(S.aView, 1, { label: t('ch_press') + ' [bar]', minSpan: 1 }), right: { min: 0, max: 100, label: '%B', color: css('--c-grad') },
       series: [{ x: d.t, y: d.press, color: css('--c-press'), width: 1.3, label: t('ch_press'), dec: 2 }, { x: d.t, y: d.b, color: css('--c-grad'), axis: 'R', width: 1.2, label: '%B', dec: 1 }] }
   ] });
@@ -332,8 +340,8 @@ function drawAna() {
 async function saveAnalysis() {
   const r = S.aRun, res = S.aRes; if (!r || !res) return;
   res.peaks.forEach(p => { const c = concOf(r, p); p.conc = c ? c.v : null; });
-  r.analysis = { params: res.params, peaks: res.peaks, noise: res.noise, at: new Date().toISOString(), auto: false };
-  await Store.put('runs', r); await logAudit('analysis saved', r.name + ' · ' + res.peaks.length + ' peaks · S/N ' + res.params.sn);
+  r.analysis = { params: res.params, peaks: res.peaks, noise: res.noise, at: new Date().toISOString(), auto: false, edits: clone(S.aEdits) };
+  await Store.put('runs', r); await logAudit('analysis saved', r.name + ' · ' + res.peaks.length + ' peaks · S/N ' + res.params.sn + ' · manual ' + S.aEdits.manual.length + ' · removed ' + S.aEdits.removed.length);
   renderRuns(); toast(t('saved'));
 }
 
@@ -459,6 +467,21 @@ function bind() {
   $('#aSel').onchange = e => openAnalysis(e.target.value);
   $('#aReint').onclick = integrate; $('#aSave').onclick = saveAnalysis;
   $('#aAuto').onclick = () => { S.aView = { auto: true }; drawAna(); };
+  $('#aManual').onclick = () => { S.aManualMode = !S.aManualMode; renderAnalysis(); };
+  $('#aClear').onclick = () => { S.aEdits = { manual: [], removed: [] }; integrate(); };
+  plotAna.onRange = (a, b) => { S.aEdits.manual = S.aEdits.manual.filter(m => m.end < a || m.start > b); S.aEdits.manual.push({ start: a, end: b }); integrate(); };
+  $('#peakTable').onclick = e => {
+    const b = e.target.closest('button[data-rmpk]'); if (!b || !S.aRes) return;
+    const pk = S.aRes.peaks[+b.dataset.rmpk]; if (!pk) return;
+    if (pk.manual) S.aEdits.manual = S.aEdits.manual.filter(m => !(m.start === pk.mStart && m.end === pk.mEnd));
+    else S.aEdits.removed.push({ start: pk.start, end: pk.end });
+    integrate();
+  };
+  $('#aCompare').onchange = e => {
+    const id = e.target.dataset.cmp; if (!id) return;
+    if (e.target.checked) { if (S.aOverlay.length >= 5) { e.target.checked = false; return; } S.aOverlay.push(id); } else S.aOverlay = S.aOverlay.filter(q => q !== id);
+    renderAnalysis();
+  };
   $('#aCsv').onclick = () => { if (S.aRun) exportRun(S.aRun, 'csv'); };
   $('#cSel').onchange = () => { S.cal.excluded = {}; S.cal.sel = null; $('#cZero').checked = !!(calMethod().calibration && calMethod().calibration.zero); renderCal(); };
   $('#cZero').onchange = renderCal; $('#cSave').onclick = saveCal;

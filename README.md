@@ -11,6 +11,8 @@ Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft a
 - Erste Auswertung: Basislinie, Peakerkennung, Integration, tR, Fläche, Höhe, Halbwertsbreite, Bodenzahl, Tailing, Auflösung, S/N, Zuordnung über die Stoffliste
 - Kalibrierung und Quantifizierung: Kalibriergeraden je Stoff aus Standard-Läufen (Steigung, Achsenabschnitt, R², Bereich, geschätzte Nachweisgrenze), Konzentration in der Peaktabelle
 - Zoomfenster: Rechteck aufziehen vergrößert den Ausschnitt
+- Vergleich: bis zu 5 weitere Läufe über das Chromatogramm legen
+- Manuelle Integration: Integrationsgrenzen selbst ziehen, Peaks entfernen; die Änderungen werden mit dem Ergebnis gespeichert
 - Nachvollziehbarkeit: Rohdaten mit SHA-256-Prüfsumme, Protokoll aller Aktionen
 - Deutsch und Englisch
 

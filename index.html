@@ -115,11 +115,12 @@
     <div class="toolbar">
       <label class="inl"><span data-i18n="a_run"></span> <select id="aSel"></select></label>
       <span class="grow"></span>
+      <button class="btn" id="aManual" type="button" data-i18n="a_manual"></button>
       <button class="btn" id="aAuto" type="button" data-i18n="auto"></button>
       <button class="btn" id="aCsv" type="button" data-i18n="csv"></button>
     </div>
     <div class="chartwrap tall"><canvas id="cvAna"></canvas></div>
-    <p class="hint" data-i18n="hint_zoom"></p>
+    <p class="hint" id="aHint"></p>
   </div>
   <div class="split wideleft">
     <div class="card">
@@ -138,7 +139,13 @@
         <div class="row wrap">
           <button class="btn" id="aReint" type="button" data-i18n="a_reint"></button>
           <button class="btn primary" id="aSave" type="button" data-i18n="a_save"></button>
+          <button class="btn" id="aClear" type="button" data-i18n="a_clear"></button>
         </div>
+      </div>
+      <div class="card">
+        <h2 data-i18n="a_compare"></h2>
+        <p class="hint nomargin" data-i18n="a_compare_hint"></p>
+        <div class="cmp" id="aCompare"></div>
       </div>
       <div class="card">
         <h2 data-i18n="a_meta"></h2>
