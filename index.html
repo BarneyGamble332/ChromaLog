@@ -22,6 +22,7 @@
 <nav class="tabs" id="tabs">
   <a href="#messen" data-i18n="tab_measure"></a>
   <a href="#methoden" data-i18n="tab_methods"></a>
+  <a href="#sequenz" data-i18n="tab_seq"></a>
   <a href="#laeufe" data-i18n="tab_runs"></a>
   <a href="#auswertung" data-i18n="tab_analysis"></a>
   <a href="#kalibrierung" data-i18n="tab_cal"></a>
@@ -100,6 +101,32 @@
   </div>
 </section>
 
+<section id="v-sequenz" class="view" hidden>
+  <div class="card">
+    <div class="toolbar">
+      <h2 data-i18n="q_title"></h2><span class="grow"></span>
+      <label class="chk"><input type="checkbox" id="qConfirm"> <span data-i18n="q_confirm"></span></label>
+      <button class="btn primary" id="qStart" type="button" data-i18n="q_start"></button>
+      <button class="btn danger" id="qStop" type="button" data-i18n="q_stop"></button>
+    </div>
+    <div class="tablewrap" id="qTable"></div>
+    <div class="row wrap">
+      <button class="btn" id="qAdd" type="button" data-i18n="add_row"></button>
+      <button class="btn" id="qTemplate" type="button" data-i18n="q_template"></button>
+      <button class="btn" id="qClear" type="button" data-i18n="q_clear"></button>
+    </div>
+  </div>
+</section>
+
+<section id="v-bericht" class="view" hidden>
+  <div class="toolbar noprint">
+    <button class="btn" id="rBack" type="button" data-i18n="rep_back"></button><span class="grow"></span>
+    <button class="btn" id="rHtml" type="button" data-i18n="rep_html"></button>
+    <button class="btn primary" id="rPrint" type="button" data-i18n="rep_print"></button>
+  </div>
+  <div class="paper" id="report"></div>
+</section>
+
 <section id="v-laeufe" class="view" hidden>
   <div class="card">
     <div class="toolbar">
@@ -118,6 +145,7 @@
       <button class="btn" id="aManual" type="button" data-i18n="a_manual"></button>
       <button class="btn" id="aAuto" type="button" data-i18n="auto"></button>
       <button class="btn" id="aCsv" type="button" data-i18n="csv"></button>
+      <button class="btn primary" id="aReport" type="button" data-i18n="rep_btn"></button>
     </div>
     <div class="chartwrap tall"><canvas id="cvAna"></canvas></div>
     <p class="hint" id="aHint"></p>

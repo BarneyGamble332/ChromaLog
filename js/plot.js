@@ -22,7 +22,7 @@ class Plot {
     if (window.ResizeObserver) new ResizeObserver(() => this.draw()).observe(canvas.parentElement);
   }
   set(spec) { this.spec = spec; this.draw(); }
-  css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888'; }
+  css(n) { if (this.theme && this.theme[n]) return this.theme[n]; return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888'; }
   xAt(px) { const r = this.rects[0], s = this.spec; return s.x0 + (px - r.x) / r.w * (s.x1 - s.x0); }
   bind() {
     const cv = this.cv;

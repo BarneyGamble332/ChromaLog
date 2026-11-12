@@ -4,6 +4,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const CH = ['uv', 'cond', 'press', 'temp', 'flow', 'b'];
+const APP_VERSION = '0.3';
 
 const DEFAULT_METHODS = [
   { id: 'm-screening', name: 'Abwasser-Screening (Gradient)', column: 'C18, 100 × 4,6 mm', solventA: 'Wasser + 0,1 % Ameisensäure', solventB: 'Acetonitril',
@@ -21,16 +22,17 @@ const S = {
   methods: [], runs: [], auditLog: [], dev: null, last: null, stage1: false, led: true,
   mon: { t: [], uv: [], cond: [], press: [], temp: [], b: [] }, phase: 'idle', run: null,
   view: { auto: true }, aView: { auto: true }, aRun: null, aRes: null, editM: null, editDirty: false,
-  console: [], dirty: true, tab: 'messen', cal: { excluded: {}, sel: null, res: null }, aEdits: { manual: [], removed: [] }, aOverlay: [], aManualMode: false
+  console: [], dirty: true, tab: 'messen', cal: { excluded: {}, sel: null, res: null }, aEdits: { manual: [], removed: [] }, aOverlay: [], aManualMode: false, seq: { rows: [], running: false, idx: -1, confirm: true }
 };
 let plotLive, plotAna, plotGrad, plotCal;
 
 /* ---------- kleine Helfer ---------- */
 let toastTimer;
 function toast(msg, crit) { const e = $('#toast'); e.textContent = msg; e.className = 'show' + (crit ? ' crit' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => { e.className = ''; }, crit ? 7000 : 3500); }
-function confirmDlg(text) {
+function confirmDlg(text, yes, no, primary) {
   return new Promise(res => {
-    const d = $('#dlg'); $('#dlgText').textContent = text; $('#dlgYes').textContent = t('yes'); $('#dlgNo').textContent = t('no');
+    const d = $('#dlg'); $('#dlgText').textContent = text; $('#dlgYes').textContent = yes || t('yes'); $('#dlgNo').textContent = no || t('no');
+    $('#dlgYes').className = 'btn ' + (primary ? 'primary' : 'danger');
     const done = v => { d.close(); $('#dlgYes').onclick = $('#dlgNo').onclick = null; res(v); };
     $('#dlgYes').onclick = () => done(true); $('#dlgNo').onclick = () => done(false); d.oncancel = () => res(false);
     if (d.showModal) d.showModal(); else res(true);
@@ -95,12 +97,14 @@ function onLine(line) {
 }
 
 /* ---------- Lauf ---------- */
-function startRun() {
+function startRun(opts) {
   if (!S.dev) { toast(t('t_noconn'), true); return; }
   if (S.phase !== 'idle') return;
-  const m = clone(curMethod()), type = $('#selType').value;
+  const o = opts || { name: $('#inName').value.trim() || 'Probe', type: $('#selType').value, conc: +$('#inConc').value, vol: +$('#inVol').value, site: $('#inSite').value.trim(), methodId: $('#selMethod').value };
+  if (S.methods.some(q => q.id === o.methodId)) $('#selMethod').value = o.methodId;
+  const m = clone(curMethod()), type = o.type;
   S.run = {
-    id: uid(), name: $('#inName').value.trim() || 'Probe', type, conc: type === 'standard' ? +$('#inConc').value : null, vol: +$('#inVol').value, site: $('#inSite').value.trim(),
+    id: uid(), name: o.name || 'Probe', type, conc: type === 'standard' ? +o.conc : null, vol: +o.vol || 0, site: o.site || '',
     methodId: m.id, method: m, device: S.dev.kind, simulated: S.dev.kind === 'sim', aborted: false, startedAt: null,
     data: { t: [], uv: [], cond: [], press: [], temp: [], flow: [], b: [] }, tEq: null, t0: 0, lastB: gradAt(m, 0), evDone: {}
   };
@@ -119,11 +123,17 @@ async function finishRun(aborted, reason) {
   const wasRun = S.phase === 'run';
   S.phase = 'idle'; S.run = null; renderControls(); S.dirty = true;
   cmd('VALVE LOAD'); if (reason !== 'overpressure') cmd('PCTB ' + gradAt(r.method, 0).toFixed(1));
-  if (!wasRun || r.data.t.length < 5) return;
+  if (!wasRun || r.data.t.length < 5) { if (S.seq.running) seqEnd(false); return; }
   const rec = { id: r.id, name: r.name, type: r.type, conc: r.conc, vol: r.vol, site: r.site, methodId: r.methodId, method: r.method, device: r.device,
     simulated: r.simulated, aborted: !!aborted, reason: reason || '', startedAt: r.startedAt, data: r.data };
   await storeRun(rec, aborted ? 'run aborted' : 'run finished');
   toast(t('t_runsaved'));
+  if (S.seq.running) {
+    const row = S.seq.rows[S.seq.idx]; if (row) { row.status = aborted ? 'aborted' : 'done'; row.runId = rec.id; }
+    seqSave(); renderSeq();
+    if (aborted) seqEnd(false); else setTimeout(seqNext, 400);
+    return;
+  }
   $('#inName').value = $('#inName').value.replace(/(\d+)\s*$/, (m0, n) => String(+n + 1));
   openAnalysis(rec.id); location.hash = '#auswertung';
 }
@@ -166,7 +176,7 @@ function renderStatus() {
 }
 function renderControls() {
   const idle = S.phase === 'idle';
-  $('#btnStart').disabled = !idle; $('#btnAbort').disabled = idle;
+  $('#btnStart').disabled = !idle || S.seq.running; $('#btnAbort').disabled = idle;
   ['#btnFlow', '#btnB', '#btnLoad', '#btnInject', '#btnZero', '#btnLed', '#btnPumpStop', '#selMethod'].forEach(q => { $(q).disabled = !idle; });
   $('#manLocked').hidden = idle;
   $('#btnLed').textContent = t(S.led ? 'led_off' : 'led_on');
@@ -324,18 +334,20 @@ function renderAnalysis() {
   drawAna();
 }
 const CMP_COLORS = ['--c-grad', '--c-press', '--c-temp', '--c-cond', '--muted'];
+function anaSpec(r, res, view, overlay, plot) {
+  const css = n => plot.css(n), d = r.data;
+  let x0 = 0, x1 = Math.max(d.t[d.t.length - 1] || 1, 0.1); if (!view.auto) { x0 = view.x0; x1 = view.x1; }
+  const peaks = res.peaks.map(p => ({ start: p.start, end: p.end, yStart: p.yStart, yEnd: p.yEnd, rt: p.rt, name: p.name, yApex: d.uv[Math.min(d.uv.length - 1, lowerBound(d.t, p.rt))] }));
+  return { x0, x1, xLabel: t('min'), xUnit: t('min'), panes: [
+    { h: 3, left: yLim(view, 0, { label: t('ch_uv') + ' [mAU]', minSpan: 5 }), series: [{ x: d.t, y: d.uv, color: css('--c-uv'), width: 1.5, label: 'UV', dec: 2 }].concat(
+      overlay.map((id, k) => { const q = S.runs.find(z => z.id === id); return q ? { x: q.data.t, y: q.data.uv, color: css(CMP_COLORS[k % CMP_COLORS.length]), width: 1.1, label: q.name.slice(0, 14), dec: 2 } : null; }).filter(Boolean)), peaks },
+    { h: 1, left: yLim(view, 1, { label: t('ch_press') + ' [bar]', minSpan: 1 }), right: { min: 0, max: 100, label: '%B', color: css('--c-grad') },
+      series: [{ x: d.t, y: d.press, color: css('--c-press'), width: 1.3, label: t('ch_press'), dec: 2 }, { x: d.t, y: d.b, color: css('--c-grad'), axis: 'R', width: 1.2, label: '%B', dec: 1 }] }
+  ] };
+}
 function drawAna() {
   const r = S.aRun, res = S.aRes; if (!r || !res || S.tab !== 'auswertung') return;
-  const css = n => plotAna.css(n), d = r.data;
-  let x0 = 0, x1 = Math.max(d.t[d.t.length - 1] || 1, 0.1); if (!S.aView.auto) { x0 = S.aView.x0; x1 = S.aView.x1; }
-  const peaks = res.peaks.map(p => ({ start: p.start, end: p.end, yStart: p.yStart, yEnd: p.yEnd, rt: p.rt, name: p.name, yApex: d.uv[Math.min(d.uv.length - 1, lowerBound(d.t, p.rt))] }));
-  plotAna.rangeMode = S.aManualMode;
-  plotAna.set({ x0, x1, xLabel: t('min'), xUnit: t('min'), panes: [
-    { h: 3, left: yLim(S.aView, 0, { label: t('ch_uv') + ' [mAU]', minSpan: 5 }), series: [{ x: d.t, y: d.uv, color: css('--c-uv'), width: 1.5, label: 'UV', dec: 2 }].concat(
-      S.aOverlay.map((id, k) => { const q = S.runs.find(z => z.id === id); return q ? { x: q.data.t, y: q.data.uv, color: css(CMP_COLORS[k % CMP_COLORS.length]), width: 1.1, label: q.name.slice(0, 14), dec: 2 } : null; }).filter(Boolean)), peaks },
-    { h: 1, left: yLim(S.aView, 1, { label: t('ch_press') + ' [bar]', minSpan: 1 }), right: { min: 0, max: 100, label: '%B', color: css('--c-grad') },
-      series: [{ x: d.t, y: d.press, color: css('--c-press'), width: 1.3, label: t('ch_press'), dec: 2 }, { x: d.t, y: d.b, color: css('--c-grad'), axis: 'R', width: 1.2, label: '%B', dec: 1 }] }
-  ] });
+  plotAna.rangeMode = S.aManualMode; plotAna.set(anaSpec(r, res, S.aView, S.aOverlay, plotAna));
 }
 async function saveAnalysis() {
   const r = S.aRun, res = S.aRes; if (!r || !res) return;
@@ -343,6 +355,107 @@ async function saveAnalysis() {
   r.analysis = { params: res.params, peaks: res.peaks, noise: res.noise, at: new Date().toISOString(), auto: false, edits: clone(S.aEdits) };
   await Store.put('runs', r); await logAudit('analysis saved', r.name + ' · ' + res.peaks.length + ' peaks · S/N ' + res.params.sn + ' · manual ' + S.aEdits.manual.length + ' · removed ' + S.aEdits.removed.length);
   renderRuns(); toast(t('saved'));
+}
+
+/* ---------- Messbericht ---------- */
+const REPORT_CSS = '.paper{background:#fff;color:#111;font:12px/1.45 "IBM Plex Sans",Arial,Helvetica,sans-serif;padding:28px 32px;max-width:900px;margin:0 auto;border:1px solid #c8c8c8}' +
+  '.paper h1{font-size:20px;margin:0 0 2px;font-weight:600}.paper h2{font:600 11px/1.2 "IBM Plex Sans",Arial,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#333;margin:18px 0 6px;border-bottom:1px solid #888;padding-bottom:3px}' +
+  '.paper .head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:2px solid #111;padding-bottom:8px}.paper .ver{font-size:11px;color:#555;white-space:nowrap}' +
+  '.paper table{border-collapse:collapse;width:100%;font-size:11px}.paper th,.paper td{padding:3px 6px;border-bottom:1px solid #ccc;text-align:left;white-space:nowrap;color:#111;font-weight:400}.paper th{color:#555;font-size:10px}' +
+  '.paper td.n,.paper th.n{text-align:right;font-family:"IBM Plex Mono",Consolas,monospace}.paper .scroll{overflow-x:auto}' +
+  '.paper .kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 28px}.paper .kv div{display:flex;gap:8px}.paper .kv b{font-weight:400;color:#555;flex:0 0 150px}.paper .kv span{overflow-wrap:anywhere}' +
+  '.paper p{margin:6px 0 0}.paper p b{font-weight:400;color:#555}.paper .mono{font-family:"IBM Plex Mono",Consolas,monospace;font-size:10px;overflow-wrap:anywhere}' +
+  '.paper img{display:block;width:100%;height:auto}.paper .warn{border:1px solid #b42318;color:#b42318;padding:4px 8px;margin-top:10px}' +
+  '.paper .sign{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:46px}.paper .sign div{border-top:1px solid #111;padding-top:3px;font-size:10px;color:#555}.paper .foot{margin-top:14px;font-size:10px;color:#666}' +
+  '@media (max-width:560px){.paper{padding:16px}.paper .kv{grid-template-columns:minmax(0,1fr)}}';
+const LIGHT = { '--ink': '#17202b', '--muted': '#5b6878', '--line': '#d3d9e1', '--panel': '#ffffff', '--accent': '#5a3fd0', '--c-uv': '#5a3fd0', '--c-grad': '#c2500e', '--c-press': '#0d7a70', '--c-cond': '#a16207', '--c-temp': '#b81f62' };
+function reportImage(r, res) {
+  const host = document.createElement('div'), cv = document.createElement('canvas');
+  host.style.cssText = 'position:absolute;left:-9999px;top:0;width:1000px;height:470px'; host.appendChild(cv); document.body.appendChild(host);
+  const pl = new Plot(cv); pl.theme = LIGHT; pl.set(anaSpec(r, res, { auto: true }, [], pl));
+  const url = cv.toDataURL('image/png'); host.remove(); return url;
+}
+function reportBody(r, res) {
+  const m = r.method, mc = S.methods.find(q => q.id === r.methodId), cal = mc && mc.calibration, p = res.params;
+  const kv = (k, v) => '<div><b>' + esc(k) + '</b><span>' + v + '</span></div>', n = v => '<td class="n">' + v + '</td>';
+  let h = '<div class="head"><div><h1>' + t('rep_title') + '</h1><div>' + esc(r.name) + '</div></div><div class="ver">ChromaLog ' + APP_VERSION + '</div></div>';
+  if (r.simulated) h += '<div class="warn">' + t('rep_sim') + '</div>';
+  if (r.aborted) h += '<div class="warn">' + t('rep_abort') + '</div>';
+  h += '<h2>' + t('rep_sample') + '</h2><div class="kv">' + kv(t('sample'), esc(r.name)) + kv(t('type'), t('ty_' + r.type) + (r.conc != null ? ', ' + fmt(r.conc, 2) + ' mg/l' : '')) + kv(t('a_started'), esc(dateStr(r.startedAt))) +
+    kv(t('vol'), fmt(r.vol, 0)) + kv(t('site'), esc(r.site || '–')) + kv(t('rep_device'), esc(r.device || '–')) + '</div>';
+  h += '<h2>' + t('rep_method') + '</h2><div class="kv">' + kv(t('m_name'), esc(m.name)) + kv(t('m_column'), esc(m.column || '–')) + kv(t('m_a'), esc(m.solventA || '–')) + kv(t('m_b'), esc(m.solventB || '–')) +
+    kv(t('flow'), fmt(m.flow, 2)) + kv(t('m_runtime'), fmt(m.runtime, 1)) + kv(t('m_rate'), fmt(m.rate, 0)) + kv(t('m_pmax'), fmt(m.pmax, 1)) + '</div>' +
+    '<p><b>' + t('m_grad') + ':</b> ' + m.gradient.map(g => fmt(g.t, 1) + ' min ' + fmt(g.b, 0) + ' %').join(' → ') + '</p>';
+  h += '<h2>' + t('rep_chrom') + '</h2><img alt="' + t('rep_chrom') + '" src="' + reportImage(r, res) + '">';
+  h += '<h2>' + t('rep_result') + '</h2>' + (!res.peaks.length ? '<p>' + t('a_nopeaks') + '</p>' :
+    '<div class="scroll"><table><tr><th class="n">#</th><th>' + t('p_name') + '</th>' + ['p_conc', 'p_rt', 'p_area', 'p_areap', 'p_height', 'p_w', 'p_n', 'p_tail', 'p_rs', 'p_sn'].map(k => '<th class="n">' + t(k) + '</th>').join('') + '</tr>' +
+    res.peaks.map((q, i) => '<tr>' + n(i + 1) + '<td>' + esc(q.name || t('unknown')) + (q.manual ? ' (' + t('a_man') + ')' : '') + '</td>' + n(concCell(r, q)) + n(fmt(q.rt, 3)) + n(fmt(q.area, 1)) + n(fmt(q.areaPct, 1)) + n(fmt(q.height, 2)) +
+      n(fmt(q.w50, 1)) + n(fmt(q.plates, 0)) + n(fmt(q.tailing, 2)) + n(fmt(q.rs, 1)) + n(fmt(q.sn, 0)) + '</tr>').join('') + '</table></div>' +
+    (res.peaks.some(q => { const c = concOf(r, q); return c && c.out; }) ? '<p>' + t('c_outside') + '</p>' : ''));
+  h += '<h2>' + t('rep_cal') + '</h2>' + (!cal ? '<p>' + t('rep_nocal') + '</p>' :
+    '<div class="scroll"><table><tr><th>' + t('p_name') + '</th>' + ['c_n', 'c_slope', 'c_icpt', 'c_r2', 'c_range'].map(k => '<th class="n">' + t(k) + '</th>').join('') + '</tr>' +
+    Object.keys(cal.compounds).map(k => { const c = cal.compounds[k]; return '<tr><td>' + esc(k) + '</td>' + n(c.n) + n(fmt(c.slope, 2)) + n(fmt(c.intercept, 1)) + n(fmt(c.r2, 4)) + n(c.min == null ? '–' : fmt(c.min, 1) + ' – ' + fmt(c.max, 1)) + '</tr>'; }).join('') +
+    '</table></div><p><b>' + t('c_savedat') + ':</b> ' + esc(dateStr(cal.at)) + (cal.zero ? ' · ' + t('c_zero') : '') + '</p>');
+  h += '<h2>' + t('rep_integ') + '</h2><div class="kv">' + kv(t('a_sn'), fmt(p.sn, 1)) + kv(t('a_minw'), fmt(p.minWidth, 1)) + kv(t('a_base'), fmt(p.baseWin, 1)) + kv(t('a_smooth'), fmt(p.smooth, 1)) +
+    kv(t('a_noise'), fmt(res.noise, 3) + ' mAU') + kv(t('a_points'), fmt(r.data.t.length, 0)) + kv(t('rep_manual'), S.aEdits.manual.length) + kv(t('rep_removed'), S.aEdits.removed.length) +
+    kv(t('rep_saved'), esc(dateStr(r.analysis && r.analysis.at))) + kv(t('rep_version'), 'ChromaLog ' + APP_VERSION) + '</div>' +
+    '<p><b>' + t('a_hash') + ' (SHA-256):</b> <span class="mono">' + esc(r.hash || '–') + '</span></p>';
+  h += '<div class="sign"><div>' + t('rep_by') + '</div><div>' + t('rep_date') + '</div><div>' + t('rep_sig') + '</div></div>' +
+    '<div class="foot">' + t('rep_made') + ' ' + APP_VERSION + ' · ' + esc(dateStr(new Date().toISOString())) + '</div>';
+  return h;
+}
+async function openReport() { if (!S.aRun || !S.aRes) return; await saveAnalysis(); location.hash = '#bericht'; }
+function renderReport() { if (!S.aRun || !S.aRes) { location.hash = '#auswertung'; return; } $('#report').innerHTML = reportBody(S.aRun, S.aRes); }
+async function exportReport() {
+  const r = S.aRun; if (!r) return;
+  const doc = '<!DOCTYPE html><html lang="' + LANG + '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + esc(t('rep_title') + ' ' + r.name) +
+    '</title><style>body{margin:0;background:#fff}' + REPORT_CSS + '@media print{.paper{border:0;padding:0;max-width:none}}</style></head><body><div class="paper">' + $('#report').innerHTML + '</div></body></html>';
+  const ok = await saveFile(fileSafe(r.name) + '_' + (r.startedAt || '').slice(0, 10) + '_Bericht.html', doc);
+  if (!ok) toast(t('t_declined')); else logAudit('report exported', r.name);
+}
+
+/* ---------- Sequenz ---------- */
+function seqSave() { Store.put('kv', { id: 'sequence', rows: S.seq.rows, confirm: S.seq.confirm }); }
+function renderSeq() {
+  const q = S.seq, lock = q.running, dis = lock ? ' disabled' : '';
+  $('#qConfirm').checked = q.confirm; $('#qStart').disabled = lock || !q.rows.length; $('#qStop').disabled = !lock;
+  ['#qAdd', '#qTemplate', '#qClear', '#qConfirm'].forEach(k => { $(k).disabled = lock; });
+  const mopts = id => S.methods.map(m => '<option value="' + esc(m.id) + '"' + (m.id === id ? ' selected' : '') + '>' + esc(m.name) + '</option>').join('');
+  const topts = ty => ['blank', 'standard', 'sample'].map(k => '<option value="' + k + '"' + (k === ty ? ' selected' : '') + '>' + t('ty_' + k) + '</option>').join('');
+  const st = r => { const k = r.status || 'wait'; return '<span class="badge ' + (k === 'done' ? 'ok' : k === 'running' ? 'run' : k === 'aborted' ? 'crit' : '') + '">' + t('q_' + k) + '</span>'; };
+  $('#qTable').innerHTML = !q.rows.length ? '<p class="hint">' + t('q_empty') + '</p>' :
+    '<table class="edit seq"><tr><th>#</th><th>' + t('sample') + '</th><th>' + t('type') + '</th><th>' + t('conc') + '</th><th>' + t('vol') + '</th><th>' + t('method') + '</th><th>' + t('q_status') + '</th><th></th></tr>' +
+    q.rows.map((r, i) => '<tr><td class="n">' + (i + 1) + '</td><td><input type="text" data-q="' + i + '" data-k="name" value="' + esc(r.name) + '"' + dis + '></td>' +
+      '<td><select data-q="' + i + '" data-k="type"' + dis + '>' + topts(r.type) + '</select></td>' +
+      '<td><input type="number" step="any" min="0" data-q="' + i + '" data-k="conc" value="' + (r.conc == null ? '' : r.conc) + '"' + (lock || r.type !== 'standard' ? ' disabled' : '') + '></td>' +
+      '<td><input type="number" step="1" min="0" data-q="' + i + '" data-k="vol" value="' + r.vol + '"' + dis + '></td>' +
+      '<td><select data-q="' + i + '" data-k="methodId"' + dis + '>' + mopts(r.methodId) + '</select></td>' +
+      '<td>' + st(r) + (r.runId && S.runs.some(z => z.id === r.runId) ? ' <button type="button" class="btn small" data-qopen="' + r.runId + '">' + t('r_open') + '</button>' : '') + '</td>' +
+      '<td><button type="button" class="btn small" data-qrm="' + i + '" aria-label="entfernen"' + dis + '>✕</button></td></tr>').join('') + '</table>';
+}
+function seqStart() {
+  const q = S.seq; if (q.running || S.phase !== 'idle' || !q.rows.length) return;
+  if (!S.dev) { toast(t('t_noconn'), true); return; }
+  if (q.rows.every(r => r.status === 'done')) q.rows.forEach(r => { r.status = ''; r.runId = null; });
+  q.running = true; logAudit('sequence started', q.rows.length + ' rows'); renderSeq(); renderControls(); seqNext();
+}
+async function seqNext() {
+  const q = S.seq; if (!q.running) return;
+  const i = q.rows.findIndex(r => r.status !== 'done');
+  if (i < 0) { seqEnd(true); return; }
+  const row = q.rows[i];
+  if (q.confirm && !(await confirmDlg(t('q_next') + ' ' + row.name + ' (' + t('ty_' + row.type) + '). ' + t('q_next2'), t('q_go'), t('q_stop'), true))) { seqEnd(false); return; }
+  if (!S.dev || !q.running) { seqEnd(false); return; }
+  q.idx = i; row.status = 'running'; row.runId = null; renderSeq();
+  if (S.tab !== 'messen') location.hash = '#messen';
+  startRun({ name: row.name, type: row.type, conc: row.conc, vol: row.vol, site: '', methodId: row.methodId });
+}
+function seqEnd(ok) {
+  const q = S.seq; if (!q.running) return;
+  q.running = false; q.idx = -1; q.rows.forEach(r => { if (r.status === 'running') r.status = 'aborted'; });
+  seqSave(); renderSeq(); renderControls();
+  logAudit(ok ? 'sequence finished' : 'sequence stopped', q.rows.filter(r => r.status === 'done').length + ' / ' + q.rows.length);
+  if (ok) { toast(t('q_finished')); location.hash = '#sequenz'; }
 }
 
 /* ---------- Kalibrierung und Quantifizierung ---------- */
@@ -415,7 +528,7 @@ function renderAudit() {
 }
 
 /* ---------- Navigation, Sprache, Start ---------- */
-const TABS = ['messen', 'methoden', 'laeufe', 'auswertung', 'kalibrierung', 'system'];
+const TABS = ['messen', 'methoden', 'sequenz', 'laeufe', 'auswertung', 'kalibrierung', 'system', 'bericht'];
 function route() {
   const h = location.hash.replace('#', ''); S.tab = TABS.includes(h) ? h : 'messen';
   TABS.forEach(n => { $('#v-' + n).hidden = n !== S.tab; });
@@ -423,13 +536,15 @@ function route() {
   if (S.tab === 'methoden') { if (!S.editM) selectMethod(S.methods[0] && S.methods[0].id); else renderEditor(); }
   if (S.tab === 'auswertung') { if (!S.aRun && S.runs.length) openAnalysis(S.runs[0].id); else renderAnalysis(); }
   if (S.tab === 'kalibrierung') renderCal();
+  if (S.tab === 'sequenz') renderSeq();
+  if (S.tab === 'bericht') renderReport();
   if (S.tab === 'system') { renderConsole(); renderAudit(); }
   S.dirty = true;
 }
 function setLang(l) {
   LANG = l; try { localStorage.setItem('chromalog.lang', l); } catch (e) {}
   applyI18n(); $('#btnLang').textContent = l === 'de' ? 'EN' : 'DE'; $('#selLang').value = l;
-  renderControls(); renderRuns(); fillRunSelect(); renderMethodList(); if (S.tab === 'methoden') renderEditor(); renderAnalysis(); renderAudit(); if (S.tab === 'kalibrierung') renderCal(); S.dirty = true;
+  renderControls(); renderRuns(); fillRunSelect(); renderMethodList(); if (S.tab === 'methoden') renderEditor(); renderAnalysis(); renderAudit(); if (S.tab === 'kalibrierung') renderCal(); if (S.tab === 'sequenz') renderSeq(); if (S.tab === 'bericht') renderReport(); S.dirty = true;
 }
 function frame() {
   if (S.dirty) { S.dirty = false; renderStatus(); if (S.tab === 'messen') drawLive(); if (S.tab === 'system') renderConsole(); }
@@ -439,8 +554,8 @@ function bind() {
   window.addEventListener('hashchange', route);
   $('#btnLang').onclick = () => setLang(LANG === 'de' ? 'en' : 'de');
   $('#selLang').onchange = e => setLang(e.target.value);
-  $('#btnStart').onclick = startRun;
-  $('#btnAbort').onclick = () => { if (S.phase === 'run') finishRun(true, 'user'); else if (S.phase === 'equil') { S.phase = 'idle'; S.run = null; renderControls(); S.dirty = true; } };
+  $('#btnStart').onclick = () => startRun();
+  $('#btnAbort').onclick = () => { if (S.phase === 'run') finishRun(true, 'user'); else if (S.phase === 'equil') { S.phase = 'idle'; S.run = null; if (S.seq.running) seqEnd(false); renderControls(); S.dirty = true; } };
   $('#selType').onchange = renderControls;
   $('#selMethod').onchange = () => { cmd('RATE ' + curMethod().rate); S.dirty = true; };
   $('#btnFlow').onclick = () => cmd('FLOW ' + (+$('#inFlow').value || 0).toFixed(3));
@@ -488,6 +603,25 @@ function bind() {
   $('#cRuns').addEventListener('change', e => { const id = e.target.dataset.run; if (id) { S.cal.excluded[id] = !e.target.checked; renderCal(); } });
   $('#cRuns').addEventListener('click', e => { if (e.target.id === 'cExample') addExampleStandards(); });
   $('#cTable').onclick = e => { const tr = e.target.closest('tr[data-c]'); if (tr) { S.cal.sel = tr.dataset.c; renderCal(); } };
+  $('#aReport').onclick = openReport; $('#rBack').onclick = () => { location.hash = '#auswertung'; }; $('#rHtml').onclick = exportReport;
+  $('#rPrint').onclick = () => { try { window.print(); } catch (e) {} };
+  $('#qStart').onclick = seqStart; $('#qStop').onclick = () => { if (S.phase === 'run') finishRun(true, 'user'); else if (S.phase === 'equil') { S.phase = 'idle'; S.run = null; seqEnd(false); renderControls(); } else seqEnd(false); };
+  $('#qConfirm').onchange = e => { S.seq.confirm = e.target.checked; seqSave(); };
+  const newRow = (name, type, conc) => ({ name, type, conc: conc == null ? null : conc, vol: 20, methodId: curMethod().id, status: '', runId: null });
+  $('#qAdd').onclick = () => { S.seq.rows.push(newRow((LANG === 'de' ? 'Probe ' : 'Sample ') + (S.seq.rows.filter(r => r.type === 'sample').length + 1), 'sample')); seqSave(); renderSeq(); };
+  $('#qTemplate').onclick = () => { S.seq.rows.push(newRow(t('ty_blank'), 'blank'), newRow('Standard 1 mg/l', 'standard', 1), newRow('Standard 5 mg/l', 'standard', 5), newRow('Standard 20 mg/l', 'standard', 20), newRow((LANG === 'de' ? 'Probe 1' : 'Sample 1'), 'sample')); seqSave(); renderSeq(); };
+  $('#qClear').onclick = () => { S.seq.rows = []; seqSave(); renderSeq(); };
+  $('#qTable').addEventListener('change', e => {
+    const el = e.target, row = S.seq.rows[+el.dataset.q]; if (!row || !el.dataset.k) return;
+    row[el.dataset.k] = el.type === 'number' ? (el.value === '' ? null : +el.value) : el.value;
+    if (el.dataset.k === 'type') { if (row.type === 'standard' && row.conc == null) row.conc = 5; renderSeq(); }
+    seqSave();
+  });
+  $('#qTable').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.qrm) { S.seq.rows.splice(+b.dataset.qrm, 1); seqSave(); renderSeq(); }
+    else if (b.dataset.qopen) { openAnalysis(b.dataset.qopen); location.hash = '#auswertung'; }
+  });
   $('#btnConnect').onclick = () => connectDevice($('#selTr').value);
   $('#btnDisconnect').onclick = disconnectDevice;
   $('#selSpeed').onchange = e => { if (S.dev && S.dev.kind === 'sim') S.dev.speed = +e.target.value; };
@@ -503,6 +637,9 @@ async function init() {
   plotLive = new Plot($('#cvLive'), (a, b, y) => { S.view = newView(S.view, a, b, y); S.dirty = true; });
   plotAna = new Plot($('#cvAna'), (a, b, y) => { S.aView = newView(S.aView, a, b, y); drawAna(); });
   plotCal = new Plot($('#cvCal'));
+  const st = document.createElement('style'); st.textContent = REPORT_CSS; document.head.appendChild(st);
+  const sq = await Store.get('kv', 'sequence');
+  if (sq && Array.isArray(sq.rows)) { S.seq.rows = sq.rows; S.seq.confirm = sq.confirm !== false; S.seq.rows.forEach(r => { if (r.status === 'running') r.status = 'aborted'; }); }
   fillMethodSelect(); bind();
   if (!S.runs.length) {
     const m = clone(S.methods[0]), d = simulateRun(m, { type: 'sample' });
