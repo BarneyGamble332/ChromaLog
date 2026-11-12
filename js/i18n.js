@@ -1,0 +1,97 @@
+'use strict';
+/* Texte der Oberfläche. Neue Sprache: Block kopieren und übersetzen. */
+const I18N = {
+  de: {
+    tagline: 'Chromatographie-Software für die Mini-HPLC',
+    tab_measure: 'Messen', tab_methods: 'Methoden', tab_runs: 'Läufe', tab_analysis: 'Auswertung', tab_system: 'System',
+    conn_none: 'Kein Gerät', conn_sim: 'Simulator', conn_usb: 'USB verbunden', conn_ble: 'Bluetooth verbunden',
+    ph_idle: 'Bereit', ph_equil: 'Equilibrieren', ph_run: 'Lauf läuft', ph_done: 'Fertig',
+    monitor: 'Basislinien-Monitor (letzte 5 min)', auto: 'Auto', grad_overlay: '%B anzeigen',
+    hint_zoom: 'Mausrad oder zwei Finger: zoomen · ziehen: verschieben · Doppelklick: zurücksetzen',
+    ch_uv: 'UV 275 nm', ch_press: 'Druck', ch_cond: 'Leitfähigkeit', ch_temp: 'Temperatur', ch_grad: 'Gradient',
+    tl_time: 'Laufzeit', tl_uv: 'UV-Signal', tl_press: 'Druck', tl_flow: 'Fluss', tl_b: 'Anteil B', tl_temp: 'Temperatur', tl_cond: 'Leitfähigkeit', tl_valve: 'Ventil',
+    v_load: 'Laden', v_inject: 'Injizieren',
+    run_title: 'Lauf', method: 'Methode', sample: 'Probenname', type: 'Probenart', ty_sample: 'Probe', ty_standard: 'Standard', ty_blank: 'Blindwert',
+    conc: 'Konzentration [mg/l]', vol: 'Injektion [µl]', site: 'Ort / Notiz',
+    start: 'Lauf starten', abort: 'Abbrechen',
+    man_title: 'Handsteuerung', set: 'Setzen', flow: 'Fluss [ml/min]', pctb: 'Anteil B [%]', zero: 'Autozero', led_on: 'UV-LED an', led_off: 'UV-LED aus', pumps_stop: 'Pumpen stopp',
+    man_locked: 'Während eines Laufs steuert die Methode das Gerät.',
+    m_list: 'Methoden', m_new: 'Neu', m_dup: 'Duplizieren', m_del: 'Löschen', m_save: 'Speichern', m_name: 'Name', m_column: 'Säule', m_a: 'Laufmittel A', m_b: 'Laufmittel B',
+    m_runtime: 'Laufzeit [min]', m_rate: 'Datenrate [Hz]', m_pmax: 'Druckgrenze [bar]', m_autozero: 'Autozero vor Injektion',
+    m_grad: 'Gradient', m_time: 'Zeit [min]', m_events: 'Ventil-Ereignisse', m_pos: 'Stellung', m_comp: 'Stoffe (für die Peak-Zuordnung)', m_cname: 'Stoff', m_rt: 'tR [min]', m_tol: 'Fenster ± [min]',
+    add_row: 'Zeile hinzufügen', saved: 'Gespeichert', m_unsaved: 'Ungespeicherte Änderungen',
+    r_title: 'Gespeicherte Läufe', r_import: 'Lauf importieren (JSON)', r_name: 'Probe', r_date: 'Datum', r_dur: 'Dauer', r_peaks: 'Peaks', r_open: 'Auswerten', r_none: 'Noch keine Läufe gespeichert.',
+    r_example: 'Beispiel (simuliert)', r_sim: 'simuliert', r_aborted: 'abgebrochen',
+    a_run: 'Lauf', a_params: 'Integration', a_sn: 'Schwelle (Signal/Rauschen)', a_minw: 'Mindestbreite [s]', a_base: 'Basislinien-Fenster [min]', a_smooth: 'Glättung [s]',
+    a_reint: 'Neu integrieren', a_save: 'Ergebnis speichern', a_peaks: 'Peaktabelle', a_meta: 'Laufdaten', a_none: 'Kein Lauf gewählt. Öffne einen Lauf unter „Läufe“.',
+    p_name: 'Stoff', p_rt: 'tR [min]', p_area: 'Fläche [mAU·s]', p_areap: 'Fläche %', p_height: 'Höhe [mAU]', p_w: 'w½ [s]', p_n: 'Böden N', p_tail: 'Tailing', p_rs: 'Auflösung', p_sn: 'S/N',
+    a_noise: 'Rauschen (σ)', a_points: 'Datenpunkte', a_hash: 'Prüfsumme Rohdaten', a_started: 'Start', a_nopeaks: 'Keine Peaks über der Schwelle gefunden.',
+    s_conn: 'Verbindung', s_transport: 'Anschluss', tr_sim: 'Simulator (ohne Hardware)', tr_usb: 'USB (seriell)', tr_ble: 'Bluetooth (BLE)', tr_wifi: 'WLAN – vorbereitet',
+    baud: 'Baudrate', connect: 'Verbinden', disconnect: 'Trennen', sim_speed: 'Simulator-Tempo',
+    usb_unsupported: 'Dieser Browser kann USB-Seriell nicht. Am Linux-PC geht es mit Chrome oder Chromium über die GitHub-Pages-Adresse. Am Handy kommt USB mit der Android-App.',
+    usb_blocked: 'Der USB-Zugriff wurde hier blockiert. Öffne die App über die GitHub-Pages-Adresse in Chrome oder Chromium.',
+    ble_unsupported: 'Dieser Browser kann Bluetooth nicht. Am Handy geht es mit Chrome über die GitHub-Pages-Adresse. Unter Linux muss in Chrome ggf. chrome://flags → „Experimental Web Platform features“ aktiv sein.',
+    ble_blocked: 'Der Bluetooth-Zugriff wurde hier blockiert. Öffne die App über die GitHub-Pages-Adresse in Chrome.',
+    conn_lost: 'Verbindung zum Gerät verloren.', conn_failed: 'Verbindung fehlgeschlagen.',
+    s_console: 'Geräte-Konsole', send: 'Senden', cmd_ph: 'Befehl, z. B. FLOW 0.5',
+    s_audit: 'Protokoll (Audit-Trail)', s_proto: 'Geräteprotokoll', s_lang: 'Sprache',
+    proto_text: 'Textzeilen, je Zeile ein Datensatz oder Befehl. Die Firmware der Steuerplatine muss nur diese Zeilen verstehen. Der Stufe-1-Sketch (7 Spalten CSV) wird automatisch erkannt.',
+    au_when: 'Zeit', au_what: 'Aktion', au_detail: 'Details',
+    del_run: 'Diesen Lauf endgültig löschen?', del_method: 'Diese Methode löschen?', yes: 'Löschen', no: 'Abbrechen',
+    t_overp: 'Druckgrenze überschritten – Lauf abgebrochen, Pumpen gestoppt.', t_noconn: 'Kein Gerät verbunden.', t_runsaved: 'Lauf gespeichert.', t_imported: 'Lauf importiert.', t_badfile: 'Datei konnte nicht gelesen werden.',
+    t_declined: 'Speichern wurde abgebrochen.', t_stage1: 'Stufe-1-Detektor erkannt (nur UV und Temperatur).', t_storage: 'Der Browser-Speicher ist hier nicht verfügbar. Läufe gehen beim Schließen verloren – bitte exportieren.',
+    unknown: 'unbekannt', csv: 'CSV', json: 'JSON', min: 'min'
+  },
+  en: {
+    tagline: 'Chromatography software for the mini HPLC',
+    tab_measure: 'Acquire', tab_methods: 'Methods', tab_runs: 'Runs', tab_analysis: 'Analysis', tab_system: 'System',
+    conn_none: 'No device', conn_sim: 'Simulator', conn_usb: 'USB connected', conn_ble: 'Bluetooth connected',
+    ph_idle: 'Ready', ph_equil: 'Equilibrating', ph_run: 'Run in progress', ph_done: 'Done',
+    monitor: 'Baseline monitor (last 5 min)', auto: 'Auto', grad_overlay: 'Show %B',
+    hint_zoom: 'Wheel or two fingers: zoom · drag: pan · double-click: reset',
+    ch_uv: 'UV 275 nm', ch_press: 'Pressure', ch_cond: 'Conductivity', ch_temp: 'Temperature', ch_grad: 'Gradient',
+    tl_time: 'Run time', tl_uv: 'UV signal', tl_press: 'Pressure', tl_flow: 'Flow', tl_b: 'Solvent B', tl_temp: 'Temperature', tl_cond: 'Conductivity', tl_valve: 'Valve',
+    v_load: 'Load', v_inject: 'Inject',
+    run_title: 'Run', method: 'Method', sample: 'Sample name', type: 'Sample type', ty_sample: 'Sample', ty_standard: 'Standard', ty_blank: 'Blank',
+    conc: 'Concentration [mg/l]', vol: 'Injection [µl]', site: 'Site / note',
+    start: 'Start run', abort: 'Abort',
+    man_title: 'Manual control', set: 'Set', flow: 'Flow [ml/min]', pctb: 'Solvent B [%]', zero: 'Autozero', led_on: 'UV LED on', led_off: 'UV LED off', pumps_stop: 'Stop pumps',
+    man_locked: 'During a run the method controls the device.',
+    m_list: 'Methods', m_new: 'New', m_dup: 'Duplicate', m_del: 'Delete', m_save: 'Save', m_name: 'Name', m_column: 'Column', m_a: 'Solvent A', m_b: 'Solvent B',
+    m_runtime: 'Run time [min]', m_rate: 'Data rate [Hz]', m_pmax: 'Pressure limit [bar]', m_autozero: 'Autozero before injection',
+    m_grad: 'Gradient', m_time: 'Time [min]', m_events: 'Valve events', m_pos: 'Position', m_comp: 'Compounds (for peak assignment)', m_cname: 'Compound', m_rt: 'tR [min]', m_tol: 'Window ± [min]',
+    add_row: 'Add row', saved: 'Saved', m_unsaved: 'Unsaved changes',
+    r_title: 'Stored runs', r_import: 'Import run (JSON)', r_name: 'Sample', r_date: 'Date', r_dur: 'Duration', r_peaks: 'Peaks', r_open: 'Analyse', r_none: 'No runs stored yet.',
+    r_example: 'Example (simulated)', r_sim: 'simulated', r_aborted: 'aborted',
+    a_run: 'Run', a_params: 'Integration', a_sn: 'Threshold (signal/noise)', a_minw: 'Minimum width [s]', a_base: 'Baseline window [min]', a_smooth: 'Smoothing [s]',
+    a_reint: 'Reintegrate', a_save: 'Save result', a_peaks: 'Peak table', a_meta: 'Run data', a_none: 'No run selected. Open a run under “Runs”.',
+    p_name: 'Compound', p_rt: 'tR [min]', p_area: 'Area [mAU·s]', p_areap: 'Area %', p_height: 'Height [mAU]', p_w: 'w½ [s]', p_n: 'Plates N', p_tail: 'Tailing', p_rs: 'Resolution', p_sn: 'S/N',
+    a_noise: 'Noise (σ)', a_points: 'Data points', a_hash: 'Raw data checksum', a_started: 'Start', a_nopeaks: 'No peaks found above the threshold.',
+    s_conn: 'Connection', s_transport: 'Port', tr_sim: 'Simulator (no hardware)', tr_usb: 'USB (serial)', tr_ble: 'Bluetooth (BLE)', tr_wifi: 'Wi-Fi – prepared',
+    baud: 'Baud rate', connect: 'Connect', disconnect: 'Disconnect', sim_speed: 'Simulator speed',
+    usb_unsupported: 'This browser cannot use USB serial. On a Linux PC use Chrome or Chromium via the GitHub Pages address. On the phone, USB comes with the Android app.',
+    usb_blocked: 'USB access was blocked here. Open the app via the GitHub Pages address in Chrome or Chromium.',
+    ble_unsupported: 'This browser cannot use Bluetooth. On the phone use Chrome via the GitHub Pages address. On Linux, Chrome may need chrome://flags → “Experimental Web Platform features”.',
+    ble_blocked: 'Bluetooth access was blocked here. Open the app via the GitHub Pages address in Chrome.',
+    conn_lost: 'Connection to the device was lost.', conn_failed: 'Connection failed.',
+    s_console: 'Device console', send: 'Send', cmd_ph: 'Command, e.g. FLOW 0.5',
+    s_audit: 'Log (audit trail)', s_proto: 'Device protocol', s_lang: 'Language',
+    proto_text: 'Text lines, one record or command per line. The controller firmware only has to understand these lines. The stage 1 sketch (7-column CSV) is detected automatically.',
+    au_when: 'Time', au_what: 'Action', au_detail: 'Details',
+    del_run: 'Delete this run permanently?', del_method: 'Delete this method?', yes: 'Delete', no: 'Cancel',
+    t_overp: 'Pressure limit exceeded – run aborted, pumps stopped.', t_noconn: 'No device connected.', t_runsaved: 'Run saved.', t_imported: 'Run imported.', t_badfile: 'The file could not be read.',
+    t_declined: 'Saving was cancelled.', t_stage1: 'Stage 1 detector found (UV and temperature only).', t_storage: 'Browser storage is not available here. Runs are lost when you close the page – please export them.',
+    unknown: 'unknown', csv: 'CSV', json: 'JSON', min: 'min'
+  }
+};
+let LANG = 'de';
+function t(k) { return (I18N[LANG] && I18N[LANG][k]) || I18N.de[k] || k; }
+function applyI18n() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-i18n]').forEach(e => { e.textContent = t(e.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(e => { e.placeholder = t(e.dataset.i18nPh); });
+}
+function fmt(v, d) {
+  if (v == null || !isFinite(v)) return '–';
+  return v.toLocaleString(LANG === 'de' ? 'de-DE' : 'en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+}

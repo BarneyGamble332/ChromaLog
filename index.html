@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChromaLog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 40 24" width="40" height="24" aria-hidden="true"><path d="M1 21h7c3 0 3-17 6-17s3 17 6 17h3c2 0 2-9 4-9s2 9 4 9h8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="name">ChromaLog</span>
+    <span class="tag" data-i18n="tagline"></span>
+  </div>
+  <div class="pills">
+    <span class="pill" id="pillConn"></span>
+    <span class="pill" id="pillRun"></span>
+    <button class="btn ghost" id="btnLang" type="button">EN</button>
+  </div>
+</header>
+<nav class="tabs" id="tabs">
+  <a href="#messen" data-i18n="tab_measure"></a>
+  <a href="#methoden" data-i18n="tab_methods"></a>
+  <a href="#laeufe" data-i18n="tab_runs"></a>
+  <a href="#auswertung" data-i18n="tab_analysis"></a>
+  <a href="#system" data-i18n="tab_system"></a>
+</nav>
+
+<main>
+<section id="v-messen" class="view">
+  <div class="live">
+    <div class="card chartcard">
+      <div class="toolbar">
+        <strong id="liveTitle"></strong>
+        <span class="grow"></span>
+        <label class="chk"><input type="checkbox" id="showGrad" checked> <span data-i18n="grad_overlay"></span></label>
+        <select id="pane2Sel" aria-label="Kanal">
+          <option value="press" data-i18n="ch_press"></option>
+          <option value="cond" data-i18n="ch_cond"></option>
+          <option value="temp" data-i18n="ch_temp"></option>
+        </select>
+        <button class="btn" id="btnAuto" type="button" data-i18n="auto"></button>
+      </div>
+      <div class="chartwrap"><canvas id="cvLive"></canvas></div>
+      <p class="hint" data-i18n="hint_zoom"></p>
+    </div>
+    <div class="side">
+      <div class="tiles" id="tiles"></div>
+      <div class="card">
+        <h2 data-i18n="run_title"></h2>
+        <div class="form">
+          <label class="wide"><span data-i18n="method"></span><select id="selMethod"></select></label>
+          <label class="wide"><span data-i18n="sample"></span><input id="inName" type="text" value="Probe 1"></label>
+          <label><span data-i18n="type"></span><select id="selType">
+            <option value="sample" data-i18n="ty_sample"></option>
+            <option value="standard" data-i18n="ty_standard"></option>
+            <option value="blank" data-i18n="ty_blank"></option></select></label>
+          <label><span data-i18n="conc"></span><input id="inConc" type="number" step="0.1" min="0" value="5"></label>
+          <label><span data-i18n="vol"></span><input id="inVol" type="number" step="1" min="0" value="20"></label>
+          <label><span data-i18n="site"></span><input id="inSite" type="text"></label>
+        </div>
+        <div class="row">
+          <button class="btn primary" id="btnStart" type="button" data-i18n="start"></button>
+          <button class="btn danger" id="btnAbort" type="button" data-i18n="abort" disabled></button>
+        </div>
+      </div>
+      <div class="card" id="manCard">
+        <h2 data-i18n="man_title"></h2>
+        <p class="hint" id="manLocked" data-i18n="man_locked" hidden></p>
+        <div class="form">
+          <label><span data-i18n="flow"></span><span class="inl"><input id="inFlow" type="number" step="0.05" min="0" max="5" value="1"><button class="btn" id="btnFlow" type="button" data-i18n="set"></button></span></label>
+          <label><span data-i18n="pctb"></span><span class="inl"><input id="inB" type="number" step="1" min="0" max="100" value="5"><button class="btn" id="btnB" type="button" data-i18n="set"></button></span></label>
+        </div>
+        <div class="row wrap">
+          <button class="btn" id="btnLoad" type="button" data-i18n="v_load"></button>
+          <button class="btn" id="btnInject" type="button" data-i18n="v_inject"></button>
+          <button class="btn" id="btnZero" type="button" data-i18n="zero"></button>
+          <button class="btn" id="btnLed" type="button"></button>
+          <button class="btn danger" id="btnPumpStop" type="button" data-i18n="pumps_stop"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="v-methoden" class="view" hidden>
+  <div class="split">
+    <div class="card">
+      <h2 data-i18n="m_list"></h2>
+      <div class="list" id="mList"></div>
+      <div class="row wrap">
+        <button class="btn" id="mNew" type="button" data-i18n="m_new"></button>
+        <button class="btn" id="mDup" type="button" data-i18n="m_dup"></button>
+        <button class="btn danger" id="mDel" type="button" data-i18n="m_del"></button>
+      </div>
+    </div>
+    <div class="card" id="mEditor"></div>
+  </div>
+</section>
+
+<section id="v-laeufe" class="view" hidden>
+  <div class="card">
+    <div class="toolbar">
+      <h2 data-i18n="r_title"></h2><span class="grow"></span>
+      <label class="btn filebtn"><span data-i18n="r_import"></span><input id="runFile" type="file" accept=".json,application/json" hidden></label>
+    </div>
+    <div class="tablewrap" id="runTable"></div>
+  </div>
+</section>
+
+<section id="v-auswertung" class="view" hidden>
+  <div class="card chartcard">
+    <div class="toolbar">
+      <label class="inl"><span data-i18n="a_run"></span> <select id="aSel"></select></label>
+      <span class="grow"></span>
+      <button class="btn" id="aAuto" type="button" data-i18n="auto"></button>
+      <button class="btn" id="aCsv" type="button" data-i18n="csv"></button>
+    </div>
+    <div class="chartwrap tall"><canvas id="cvAna"></canvas></div>
+    <p class="hint" data-i18n="hint_zoom"></p>
+  </div>
+  <div class="split wideleft">
+    <div class="card">
+      <h2 data-i18n="a_peaks"></h2>
+      <div class="tablewrap" id="peakTable"></div>
+    </div>
+    <div class="stack">
+      <div class="card">
+        <h2 data-i18n="a_params"></h2>
+        <div class="form">
+          <label><span data-i18n="a_sn"></span><input id="aSn" type="number" step="1" min="1"></label>
+          <label><span data-i18n="a_minw"></span><input id="aMinW" type="number" step="0.5" min="0.5"></label>
+          <label><span data-i18n="a_base"></span><input id="aBase" type="number" step="0.1" min="0.2"></label>
+          <label><span data-i18n="a_smooth"></span><input id="aSmooth" type="number" step="0.1" min="0"></label>
+        </div>
+        <div class="row wrap">
+          <button class="btn" id="aReint" type="button" data-i18n="a_reint"></button>
+          <button class="btn primary" id="aSave" type="button" data-i18n="a_save"></button>
+        </div>
+      </div>
+      <div class="card">
+        <h2 data-i18n="a_meta"></h2>
+        <dl class="meta" id="aMeta"></dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="v-system" class="view" hidden>
+  <div class="split even">
+    <div class="stack">
+      <div class="card">
+        <h2 data-i18n="s_conn"></h2>
+        <div class="form">
+          <label><span data-i18n="s_transport"></span><select id="selTr">
+            <option value="sim" data-i18n="tr_sim"></option>
+            <option value="usb" data-i18n="tr_usb"></option>
+            <option value="ble" data-i18n="tr_ble"></option>
+            <option value="wifi" data-i18n="tr_wifi" disabled></option></select></label>
+          <label><span data-i18n="baud"></span><select id="selBaud"><option>9600</option><option>57600</option><option selected>115200</option></select></label>
+          <label><span data-i18n="sim_speed"></span><select id="selSpeed"><option value="1">1×</option><option value="5">5×</option><option value="20">20×</option><option value="60">60×</option></select></label>
+          <label><span data-i18n="s_lang"></span><select id="selLang"><option value="de">Deutsch</option><option value="en">English</option></select></label>
+        </div>
+        <div class="row wrap">
+          <button class="btn primary" id="btnConnect" type="button" data-i18n="connect"></button>
+          <button class="btn" id="btnDisconnect" type="button" data-i18n="disconnect"></button>
+        </div>
+        <p class="hint" id="connHint"></p>
+      </div>
+      <div class="card">
+        <h2 data-i18n="s_console"></h2>
+        <pre class="console" id="console"></pre>
+        <form class="row" id="cmdForm"><input id="cmdIn" type="text" data-i18n-ph="cmd_ph" autocomplete="off"><button class="btn" type="submit" data-i18n="send"></button></form>
+      </div>
+      <div class="card">
+        <h2 data-i18n="s_proto"></h2>
+        <p class="hint" data-i18n="proto_text"></p>
+        <div class="tablewrap"><table class="mono">
+          <tr><th>Gerät → App</th><td>D,t_s,uv_AU,cond_µS,p_bar,T_°C,flow,%B,LOAD|INJECT</td></tr>
+          <tr><th>App → Gerät</th><td>FLOW 0.50 · PCTB 35.0 · VALVE INJECT · VALVE LOAD · ZERO · LED 1 · RATE 10 · STOP</td></tr>
+          <tr><th>Stufe 1</th><td>zeit_s,I_V,R_V,verhaeltnis,extinktion_AU,temp_C,uebersteuert · n · d</td></tr>
+        </table></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 data-i18n="s_audit"></h2>
+      <div class="tablewrap scroll" id="auditTable"></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<dialog id="dlg"><p id="dlgText"></p><div class="row"><button class="btn danger" id="dlgYes" type="button"></button><button class="btn" id="dlgNo" type="button"></button></div></dialog>
+
+<script src="js/i18n.js"></script>
+<script src="js/store.js"></script>
+<script src="js/device.js"></script>
+<script src="js/analysis.js"></script>
+<script src="js/plot.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
