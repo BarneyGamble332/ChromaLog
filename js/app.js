@@ -136,6 +136,14 @@ async function storeRun(rec, action) {
   renderRuns(); fillRunSelect();
 }
 
+/* Ansicht: x-Bereich und, nach einem Zoomfenster, der y-Bereich je Feld */
+function newView(old, a, b, y) {
+  if (a == null) return { auto: true };
+  const ys = Object.assign({}, old.y || {}); if (y) ys[y.pane] = [y.lo, y.hi];
+  return { auto: false, x0: a, x1: b, y: ys };
+}
+const yLim = (view, pane, base) => { const v = !view.auto && view.y && view.y[pane]; return v ? Object.assign({}, base, { min: v[0], max: v[1] }) : base; };
+
 /* ---------- Messen: Anzeige ---------- */
 function setPill(e, cls, text) { e.className = 'pill ' + cls; e.textContent = text; }
 function renderStatus() {
@@ -177,8 +185,8 @@ function drawLive() {
     if (m) top.push({ x: m.gradient.map(g => g.t), y: m.gradient.map(g => g.b), color: css('--c-grad'), axis: 'R', dash: [5, 4], width: 1 });
   }
   plotLive.set({ x0, x1, xLabel: t('min'), xUnit: t('min'), panes: [
-    { h: 3, left: { label: t('ch_uv') + ' [mAU]', minSpan: 5 }, right: showB ? { min: 0, max: 100, label: '%B', color: css('--c-grad') } : null, series: top },
-    { h: 1, left: { label: t(p2.label) + ' [' + p2.unit + ']', minSpan: p2.span }, series: [{ x, y: d[key], color: css(p2.color), width: 1.3, label: t(p2.label), dec: p2.dec }] }
+    { h: 3, left: yLim(S.view, 0, { label: t('ch_uv') + ' [mAU]', minSpan: 5 }), right: showB ? { min: 0, max: 100, label: '%B', color: css('--c-grad') } : null, series: top },
+    { h: 1, left: yLim(S.view, 1, { label: t(p2.label) + ' [' + p2.unit + ']', minSpan: p2.span }), series: [{ x, y: d[key], color: css(p2.color), width: 1.3, label: t(p2.label), dec: p2.dec }] }
   ] });
 }
 
@@ -310,8 +318,8 @@ function drawAna() {
   let x0 = 0, x1 = Math.max(d.t[d.t.length - 1] || 1, 0.1); if (!S.aView.auto) { x0 = S.aView.x0; x1 = S.aView.x1; }
   const peaks = res.peaks.map(p => ({ start: p.start, end: p.end, yStart: p.yStart, yEnd: p.yEnd, rt: p.rt, name: p.name, yApex: d.uv[Math.min(d.uv.length - 1, lowerBound(d.t, p.rt))] }));
   plotAna.set({ x0, x1, xLabel: t('min'), xUnit: t('min'), panes: [
-    { h: 3, left: { label: t('ch_uv') + ' [mAU]', minSpan: 5 }, series: [{ x: d.t, y: d.uv, color: css('--c-uv'), width: 1.5, label: 'UV', dec: 2 }], peaks },
-    { h: 1, left: { label: t('ch_press') + ' [bar]', minSpan: 1 }, right: { min: 0, max: 100, label: '%B', color: css('--c-grad') },
+    { h: 3, left: yLim(S.aView, 0, { label: t('ch_uv') + ' [mAU]', minSpan: 5 }), series: [{ x: d.t, y: d.uv, color: css('--c-uv'), width: 1.5, label: 'UV', dec: 2 }], peaks },
+    { h: 1, left: yLim(S.aView, 1, { label: t('ch_press') + ' [bar]', minSpan: 1 }), right: { min: 0, max: 100, label: '%B', color: css('--c-grad') },
       series: [{ x: d.t, y: d.press, color: css('--c-press'), width: 1.3, label: t('ch_press'), dec: 2 }, { x: d.t, y: d.b, color: css('--c-grad'), axis: 'R', width: 1.2, label: '%B', dec: 1 }] }
   ] });
 }
@@ -365,7 +373,8 @@ function bind() {
   $('#btnLed').onclick = () => { S.led = !S.led; cmd('LED ' + (S.led ? 1 : 0)); renderControls(); };
   $('#btnPumpStop').onclick = () => cmd('STOP');
   $('#btnAuto').onclick = () => { S.view = { auto: true }; S.dirty = true; };
-  $('#showGrad').onchange = $('#pane2Sel').onchange = () => { S.dirty = true; };
+  $('#showGrad').onchange = () => { S.dirty = true; };
+  $('#pane2Sel').onchange = () => { if (S.view.y) delete S.view.y[1]; S.dirty = true; };
   $('#mList').onclick = e => { const b = e.target.closest('button'); if (b) selectMethod(b.dataset.id); };
   $('#mNew').onclick = () => { S.editM = { id: uid(), name: LANG === 'de' ? 'Neue Methode' : 'New method', column: '', solventA: 'Wasser', solventB: 'Acetonitril', flow: 1, runtime: 10, rate: 10, pmax: 10, autozero: true, gradient: [{ t: 0, b: 5 }, { t: 10, b: 5 }], events: [], compounds: [] }; renderMethodList(); renderEditor(); markDirty(true); };
   $('#mDup').onclick = () => { if (!S.editM) return; S.editM = clone(S.editM); S.editM.id = uid(); S.editM.name += LANG === 'de' ? ' (Kopie)' : ' (copy)'; renderMethodList(); renderEditor(); markDirty(true); };
@@ -393,8 +402,8 @@ async function init() {
   if (!S.methods.length) { S.methods = clone(DEFAULT_METHODS); for (const m of S.methods) await Store.put('methods', m); }
   S.runs = (await Store.all('runs')).sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
   S.auditLog = (await Store.all('audit')).sort((a, b) => b.ts.localeCompare(a.ts));
-  plotLive = new Plot($('#cvLive'), (a, b) => { S.view = a == null ? { auto: true } : { auto: false, x0: a, x1: b }; S.dirty = true; });
-  plotAna = new Plot($('#cvAna'), (a, b) => { S.aView = a == null ? { auto: true } : { auto: false, x0: a, x1: b }; drawAna(); });
+  plotLive = new Plot($('#cvLive'), (a, b, y) => { S.view = newView(S.view, a, b, y); S.dirty = true; });
+  plotAna = new Plot($('#cvAna'), (a, b, y) => { S.aView = newView(S.aView, a, b, y); drawAna(); });
   fillMethodSelect(); bind();
   if (!S.runs.length) {
     const m = clone(S.methods[0]), d = simulateRun(m, { type: 'sample' });

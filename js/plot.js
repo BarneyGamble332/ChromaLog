@@ -17,7 +17,7 @@ function lowerBound(x, v) { let lo = 0, hi = x.length; while (lo < hi) { const m
 class Plot {
   constructor(canvas, onView) {
     this.cv = canvas; this.ctx = canvas.getContext('2d'); this.onView = onView || (() => {});
-    this.spec = null; this.cur = null; this.ptrs = new Map(); this.drag = null; this.pinch = null; this.rects = [];
+    this.spec = null; this.cur = null; this.ptrs = new Map(); this.drag = null; this.pinch = null; this.rects = []; this.scales = []; this.box = null;
     this.bind();
     if (window.ResizeObserver) new ResizeObserver(() => this.draw()).observe(canvas.parentElement);
   }
@@ -32,12 +32,15 @@ class Plot {
       this.onView(x - (x - s.x0) * f, x + (s.x1 - x) * f);
     }, { passive: false });
     cv.addEventListener('pointerdown', e => {
-      if (!this.spec) return;
+      if (!this.spec || !this.rects.length) return;
       try { cv.setPointerCapture(e.pointerId); } catch (err) {}
       this.ptrs.set(e.pointerId, e.offsetX);
       const s = this.spec;
-      if (this.ptrs.size === 1) this.drag = { px: e.offsetX, x0: s.x0, x1: s.x1, moved: false };
-      else if (this.ptrs.size === 2) { const v = [...this.ptrs.values()]; this.pinch = { d: Math.max(10, Math.abs(v[0] - v[1])), x0: s.x0, x1: s.x1, cx: this.xAt((v[0] + v[1]) / 2) }; this.drag = null; }
+      if (this.ptrs.size === 1) {
+        let pi = this.rects.findIndex(r => e.offsetY >= r.y && e.offsetY <= r.y + r.h); if (pi < 0) pi = 0;
+        /* Ziehen = Zoomfenster; mit Umschalttaste oder mittlerer Maustaste = verschieben */
+        this.drag = { mode: (e.shiftKey || e.button === 1) ? 'pan' : 'box', touch: e.pointerType !== 'mouse', pi, px: e.offsetX, py: e.offsetY, x0: s.x0, x1: s.x1, moved: false };
+      } else if (this.ptrs.size === 2) { const v = [...this.ptrs.values()]; this.pinch = { d: Math.max(10, Math.abs(v[0] - v[1])), x0: s.x0, x1: s.x1, cx: this.xAt((v[0] + v[1]) / 2) }; this.drag = null; this.box = null; }
     });
     cv.addEventListener('pointermove', e => {
       if (!this.spec || !this.rects.length) return;
@@ -47,13 +50,31 @@ class Plot {
           const v = [...this.ptrs.values()], f = this.pinch.d / Math.max(10, Math.abs(v[0] - v[1])), p = this.pinch;
           this.onView(p.cx - (p.cx - p.x0) * f, p.cx + (p.x1 - p.cx) * f);
         } else if (this.drag) {
-          const dpx = e.offsetX - this.drag.px;
-          if (Math.abs(dpx) > 3) this.drag.moved = true;
-          if (this.drag.moved) { const dx = dpx / this.rects[0].w * (this.drag.x1 - this.drag.x0); this.onView(this.drag.x0 - dx, this.drag.x1 - dx); }
+          const g = this.drag, dpx = e.offsetX - g.px;
+          if (Math.abs(dpx) > 3 || Math.abs(e.offsetY - g.py) > 3) g.moved = true;
+          if (!g.moved) return;
+          if (g.mode === 'pan') { const dx = dpx / this.rects[0].w * (g.x1 - g.x0); this.onView(g.x0 - dx, g.x1 - dx); }
+          else {
+            const r = this.rects[g.pi], cl = (v, a, b) => Math.max(a, Math.min(b, v));
+            const xa = cl(g.px, r.x, r.x + r.w), xb = cl(e.offsetX, r.x, r.x + r.w);
+            const ya = g.touch ? r.y : cl(g.py, r.y, r.y + r.h), yb = g.touch ? r.y + r.h : cl(e.offsetY, r.y, r.y + r.h);
+            this.box = { x: Math.min(xa, xb), y: Math.min(ya, yb), w: Math.abs(xb - xa), h: Math.abs(yb - ya), pi: g.pi, full: g.touch };
+            this.cur = null; this.draw();
+          }
         }
       } else { this.cur = this.xAt(e.offsetX); this.draw(); }
     });
-    const up = e => { this.ptrs.delete(e.pointerId); if (this.ptrs.size < 2) this.pinch = null; if (!this.ptrs.size) this.drag = null; };
+    const up = e => {
+      this.ptrs.delete(e.pointerId); if (this.ptrs.size < 2) this.pinch = null;
+      if (!this.ptrs.size) {
+        const bx = this.box; this.box = null; this.drag = null;
+        if (bx && e.type === 'pointerup' && bx.w > 8) {
+          const sc = this.scales[bx.pi], r = this.rects[bx.pi];
+          const ySel = (!bx.full && bx.h > 8 && sc) ? { pane: bx.pi, lo: sc.lo + (r.y + r.h - bx.y - bx.h) / r.h * (sc.hi - sc.lo), hi: sc.lo + (r.y + r.h - bx.y) / r.h * (sc.hi - sc.lo) } : undefined;
+          this.onView(this.xAt(bx.x), this.xAt(bx.x + bx.w), ySel);
+        } else if (bx) this.draw();
+      }
+    };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     cv.addEventListener('pointerleave', () => { if (!this.ptrs.size) { this.cur = null; this.draw(); } });
     cv.addEventListener('dblclick', () => this.onView(null));
@@ -67,7 +88,7 @@ class Plot {
     const font = '11px ' + (this.css('--f-mono') || 'monospace');
     const mL = 58, mR = sp.panes.some(p => p.right) ? 44 : 12, mT = 16, mB = 34, gap = 22;
     const total = H - mT - mB - gap * (sp.panes.length - 1), hs = sp.panes.reduce((s, p) => s + p.h, 0);
-    let y = mT; this.rects = [];
+    let y = mT; this.rects = []; this.scales = [];
     const xt = niceTicks(sp.x0, sp.x1, Math.max(3, Math.floor((W - mL - mR) / 80)));
     sp.panes.forEach((pane, pi) => {
       const r = { x: mL, y, w: W - mL - mR, h: total * pane.h / hs }; this.rects.push(r); y += r.h + gap;
@@ -85,6 +106,7 @@ class Plot {
       if (hi - lo < ms) { const c = (hi + lo) / 2; lo = c - ms / 2; hi = c + ms / 2; }
       const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
       if (L.min != null) lo = L.min; if (L.max != null) hi = L.max;
+      this.scales.push({ lo, hi });
       const YL = v => r.y + r.h - (v - lo) / (hi - lo) * r.h;
       const R = pane.right, YR = R ? (v => r.y + r.h - (v - R.min) / (R.max - R.min) * r.h) : null;
       /* Gitter und Achsen */
@@ -147,5 +169,6 @@ class Plot {
         if (sp.xLabel) { ctx.textAlign = 'right'; ctx.fillText(sp.xLabel, r.x + r.w, r.y + r.h + 20); }
       }
     });
+    if (this.box) { const bx = this.box, ac = this.css('--accent'); ctx.fillStyle = ac; ctx.globalAlpha = 0.14; ctx.fillRect(bx.x, bx.y, bx.w, bx.h); ctx.globalAlpha = 1; ctx.strokeStyle = ac; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.strokeRect(bx.x + 0.5, bx.y + 0.5, bx.w, bx.h); ctx.setLineDash([]); }
   }
 }
