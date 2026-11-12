@@ -1,6 +1,6 @@
 # ChromaLog – Anforderungen und Nachweise
 
-Stand: 12.11.2026 · gilt für Version 0.3
+Stand: 12.11.2026 · gilt für Version 0.4
 
 Dieses Dokument hält fest, was die Software können muss, und womit jede Anforderung nachgewiesen ist. Es ist die Grundlage für eine spätere Validierung. Bei jeder Änderung an der Software wird es mitgepflegt.
 
@@ -58,8 +58,26 @@ Die Referenzdaten der automatischen Tests sind berechnete Chromatogramme aus Gau
 | A-46 | Daten und Protokoll liegen manipulationssicher und mit Sicherung vor. | – | nicht umgesetzt (Browser-Speicher) |
 | A-47 | Prüfung der Prüfsumme beim Öffnen oder Importieren eines Laufs. | – | nicht umgesetzt |
 
+## 5 Steuerung (Fließbild, Bauteile, Abläufe)
+| Nr. | Anforderung | Nachweis | Status |
+| --- | --- | --- | --- |
+| A-50 | Jedes Bauteil sendet den richtigen Befehl: Standard `SET kurzname wert`, eigener Befehl mit `{v}`, Taster ohne Wert. | Automatisch | erfüllt |
+| A-51 | Bauteile ohne eigenen Befehl werden beim Gerät angemeldet (`CFG`); Anzeigen aus der Datenzeile und Bauteile mit eigenem Befehl nicht. | Automatisch | erfüllt |
+| A-52 | „Alles stopp“ sendet für jedes Bauteil den hinterlegten sicheren Wert; Bauteile ohne sicheren Wert bleiben unverändert. | Automatisch | erfüllt |
+| A-53 | Ablauf-Schritte „Stellen“, „Warten“ und „Warten bis“ schalten richtig weiter; eine Zeitüberschreitung bricht ab; ohne Messwert wird gewartet. | Automatisch | erfüllt |
+| A-54 | Messwerte werden aus der Datenzeile (`D:`) oder von einem Bauteil (`V:`) gelesen; fehlende Werte gelten als „kein Wert“. | Automatisch | erfüllt |
+| A-55 | Kurznamen sind je Aufbau eindeutig; Stellungen werden aus „Name=Wert“ gelesen. | Automatisch | erfüllt |
+| A-56 | Eine Leitung verlässt die Kachel an der Seite, die zum Ziel zeigt. | Automatisch | erfüllt |
+| A-57 | Simulator: Spritzenpumpe fördert das eingestellte Volumen und hält leer an; Heizung erreicht den Sollwert; Messwertzeilen werden gelesen. | Automatisch | erfüllt |
+| A-58 | Bauteile lassen sich verschieben, verbinden, ändern und löschen; der Aufbau bleibt nach dem Neuladen erhalten. | Browser-Test 12.11.2026 (Simulator) | erfüllt im Simulator |
+| A-59 | „Alles stopp“ beendet einen laufenden Ablauf und stoppt die Pumpen. | Browser-Test 12.11.2026 (Simulator) | erfüllt im Simulator |
+| A-60 | Während eines Methodenlaufs ist die Steuerung gesperrt; „Alles stopp“ bricht auch den Methodenlauf ab. | Offen (nur Code-Durchsicht) | offen |
+| A-61 | Allgemeiner Arduino-Sketch, der `CFG` und `SET` versteht und Messwerte als `V`-Zeilen meldet. | – | nicht umgesetzt |
+| A-62 | Heizung: Regelung und Übertemperatur-Abschaltung laufen im Gerät, auch ohne Verbindung zur App. | – | nicht umgesetzt (gehört zu A-61) |
+| A-63 | Ein Endschalter oder Lecksensor kann „Alles stopp“ auslösen. | – | nicht umgesetzt |
+
 ## Bekannte Grenzen
-- Die Tests prüfen die Rechenkerne (`js/analysis.js`, `js/device.js`). Die Oberfläche und der Ablauf im Browser sind noch nicht automatisch abgedeckt.
+- Die Tests prüfen die Rechenkerne (`js/analysis.js`, `js/device.js`, `js/control.js`). Die Oberfläche und der Ablauf im Browser sind noch nicht automatisch abgedeckt.
 - Referenzdaten sind berechnet. Ein Vergleich mit einer etablierten Chromatographie-Software an echten Messdaten steht aus.
 - Mit echter Hardware ist noch nichts geprüft.
 - Die Toleranzen gelten für Peaks mit Signal/Rausch-Verhältnis deutlich über der Schwelle; nahe der Nachweisgrenze sind sie nicht nachgewiesen.
@@ -68,3 +86,4 @@ Die Referenzdaten der automatischen Tests sind berechnete Chromatogramme aus Gau
 | Datum | Version | Änderung |
 | --- | --- | --- |
 | 12.11.2026 | 0.3 | Erste Fassung: 31 Anforderungen, davon 17 mit automatischem Test. |
+| 12.11.2026 | 0.4 | Abschnitt 5 „Steuerung“ ergänzt: 14 Anforderungen, davon 8 mit automatischem Test. Insgesamt 45 Anforderungen, 25 automatische Tests. |

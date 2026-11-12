@@ -27,6 +27,7 @@ function parseLine(line) {
   line = line.trim();
   if (!line) return null;
   const num = s => (s === '' || s == null) ? null : (isFinite(+s) ? +s : null);
+  if (line.startsWith('V,')) { const f = line.split(','); return f.length >= 3 && f[1] ? { kind: 'val', key: f[1], value: num(f[2]) } : null; }
   if (line.startsWith('D,')) {
     const f = line.split(',');
     if (f.length < 9) return null;
@@ -62,6 +63,7 @@ class SimDevice {
     this.zero = 0; this.uvF = 0; this.wander = 0; this.bands = []; this.acc = 0; this.timer = null;
     this.sample = { type: 'standard', conc: 5 };
     this.V0 = 1.0; this.N = 2500; this.noise = 0.00025;
+    this.gen = {}; this.out = []; this.vAcc = 0;      /* frei angemeldete Bauteile der Steuerung */
   }
   async connect() { this.last = performance.now(); this.timer = setInterval(() => this.tick(), 50); }
   async close() { clearInterval(this.timer); this.timer = null; }
@@ -69,7 +71,7 @@ class SimDevice {
     const now = performance.now();
     this.acc += Math.min(0.5, (now - this.last) / 1000) * this.speed; this.last = now;
     const step = 1 / this.rate; let n = 0;
-    while (this.acc >= step && n < 600) { this.acc -= step; this.onLine(this.step(step)); n++; }
+    while (this.acc >= step && n < 600) { this.acc -= step; this.onLine(this.step(step)); n++; while (this.out.length) this.onLine(this.out.shift()); }
   }
   send(cmd) {
     const p = cmd.trim().split(/\s+/), c = (p[0] || '').toUpperCase(), v = parseFloat(p[1]);
@@ -79,6 +81,8 @@ class SimDevice {
     else if (c === 'LED') this.led = p[1] !== '0';
     else if (c === 'ZERO') this.zero = this.uvF;
     else if (c === 'STOP') this.flowSet = 0;
+    else if (c === 'CFG' && p[1]) { const old = this.gen[p[1]] || {}; this.gen[p[1]] = { kind: (p[2] || '').toUpperCase(), v: old.v || 0, max: parseFloat(p[4]) || 60, vol: old.vol != null ? old.vol : (parseFloat(p[4]) || 60) * 0.7, temp: old.temp || 22 }; }
+    else if (c === 'SET' && p[1]) { const g = this.gen[p[1]] || (this.gen[p[1]] = { kind: 'VALUE', v: 0, max: 60, vol: 42, temp: 22 }); const sv = parseFloat(p[2]); g.v = isFinite(sv) ? sv : 0; }
     else if (c === 'VALVE') {
       const pos = (p[1] || '').toUpperCase();
       if (pos === 'INJECT' && this.valve !== 'INJECT') this.inject();
@@ -120,6 +124,23 @@ class SimDevice {
     const raw = sig + 0.004 * phi + this.wander;
     this.uvF += (raw - this.uvF) * (1 - Math.exp(-dt / 0.8));
     const uv = this.led ? this.uvF - this.zero + gauss() * this.noise : null;
+    /* frei angemeldete Bauteile: Spritze (Füllstand), Heizung (Ist-Temperatur), Sensor (Rauschen) */
+    this.vAcc += dt;
+    for (const k in this.gen) {
+      const g = this.gen[k];
+      if (g.kind === 'SYRINGE') { g.vol = Math.max(0, Math.min(g.max, g.vol - g.v * dt / 60)); if ((g.vol <= 0 && g.v > 0) || (g.vol >= g.max && g.v < 0)) g.v = 0; }
+      else if (g.kind === 'HEATER') g.temp += ((g.v > 0 ? g.v : 22) - g.temp) * (1 - Math.exp(-dt / 40));
+    }
+    if (this.vAcc >= 1) {
+      this.vAcc = 0;
+      for (const k in this.gen) {
+        const g = this.gen[k];
+        if (g.kind === 'SYRINGE') this.out.push('V,' + k + ',' + g.vol.toFixed(2));
+        else if (g.kind === 'HEATER') this.out.push('V,' + k + ',' + (g.temp + gauss() * 0.03).toFixed(2));
+        else if (g.kind === 'SENSOR') this.out.push('V,' + k + ',' + (0.5 + gauss() * 0.002).toFixed(4));
+      }
+      if (this.out.length > 200) this.out.length = 0;
+    }
     const eta = 1 + 0.5 * phi - 1.13 * phi * phi;
     const press = this.flow * 6.2 * eta + gauss() * 0.015;
     const cond = 82 * (1 - 0.7 * phi) + condPk + gauss() * 0.05;

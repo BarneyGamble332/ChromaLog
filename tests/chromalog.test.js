@@ -7,7 +7,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { analyze, linFit, quantify, ANALYSIS_DEFAULTS } = require('../js/analysis.js');
-const { gradAt, parseLine, simulateRun } = require('../js/device.js');
+const { gradAt, parseLine, simulateRun, SimDevice } = require('../js/device.js');
+const C = require('../js/control.js');
 
 /* Fester Zufall, damit jeder Testlauf dieselben Zahlen liefert */
 function seed(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -150,4 +151,78 @@ test('A-30 Gesamtkette im Simulator: Standards → Kalibrierung → Probe (±5 %
       near(quantify(unknown.peaks.find(q => q.name === c.name).area, fit).v, 3, 0.05, c.name);
     }
   } finally { Math.random = realRandom; }
+});
+
+/* ---------- Steuerung ---------- */
+const PARTS = [
+  { key: 'pumpea', kind: 'syringe', pin: '2/3/4', max: 60, safe: '0' },
+  { key: 'heizung', kind: 'heater', pin: '6 / 2', safe: '0' },
+  { key: 'servo3', kind: 'slider', pin: '11', safe: '' },
+  { key: 'fluss', kind: 'slider', cmd: 'FLOW {v}', safe: '0' },
+  { key: 'inj', kind: 'positions', cmd: 'VALVE {v}', safe: 'LOAD' },
+  { key: 'zero', kind: 'button', cmd: 'ZERO', safe: '0' },
+  { key: 'taster', kind: 'button' },
+  { key: 'druck', kind: 'display', source: 'D:press', pin: 'A2' },
+  { key: 'adc', kind: 'display', source: 'V:adc', pin: 'A0' }
+];
+const part = k => PARTS.find(p => p.key === k);
+
+test('A-50 Steuerung: Befehl eines Bauteils (Standard, eigener Befehl, Taster)', () => {
+  assert.equal(C.partCommand(part('servo3'), 90), 'SET servo3 90');
+  assert.equal(C.partCommand(part('fluss'), '0.5'), 'FLOW 0.5');
+  assert.equal(C.partCommand(part('inj'), 'INJECT'), 'VALVE INJECT');
+  assert.equal(C.partCommand(part('zero'), ''), 'ZERO');
+  assert.equal(C.partCommand(part('taster'), ''), 'SET taster 1');
+  assert.equal(C.partCommand(part('pumpea'), -5), 'SET pumpea -5');
+});
+
+test('A-51 Steuerung: Anmeldung der Bauteile beim Gerät', () => {
+  assert.deepEqual(C.configCommands(PARTS), ['CFG pumpea SYRINGE 2/3/4 60', 'CFG heizung HEATER 6/2', 'CFG servo3 VALUE 11', 'CFG taster BUTTON -', 'CFG adc SENSOR A0']);
+});
+
+test('A-52 Steuerung: „Alles stopp“ sendet die sicheren Werte', () => {
+  assert.deepEqual(C.safeCommands(PARTS).map(s => s.cmd), ['SET pumpea 0', 'SET heizung 0', 'FLOW 0', 'VALVE LOAD']);
+});
+
+test('A-53 Ablauf: Schritte Stellen, Warten, Warten bis, Zeitüberschreitung', () => {
+  assert.equal(C.stepState({ type: 'set' }, 0, null), 'done');
+  assert.equal(C.stepState({ type: 'wait', sec: 10 }, 9.9, null), 'wait'); assert.equal(C.stepState({ type: 'wait', sec: 10 }, 10, null), 'done');
+  const u = { type: 'until', src: 'D:press', op: '>', value: 5, timeout: 60 };
+  assert.equal(C.stepState(u, 1, 4.9), 'wait'); assert.equal(C.stepState(u, 1, 5.1), 'done'); assert.equal(C.stepState(u, 1, null), 'wait', 'kein Messwert');
+  assert.equal(C.stepState(u, 60, 4.9), 'timeout'); assert.equal(C.stepState(Object.assign({}, u, { timeout: 0 }), 9999, 4.9), 'wait', 'ohne Zeitgrenze');
+  assert.equal(C.stepState({ type: 'until', op: '<', value: 2 }, 0, 1.9), 'done');
+});
+
+test('A-54 Steuerung: Messwert-Quellen', () => {
+  const last = { press: 6.2, uv: 12.5, temp: null }, meas = { pumpea: 41.5 };
+  assert.equal(C.readSource('D:press', last, meas), 6.2); assert.equal(C.readSource('V:pumpea', last, meas), 41.5);
+  assert.equal(C.readSource('D:temp', last, meas), null); assert.equal(C.readSource('V:fehlt', last, meas), null);
+  assert.equal(C.readSource('D:press', null, null), null); assert.equal(C.readSource('', last, meas), null);
+});
+
+test('A-55 Steuerung: eindeutige Kurznamen und Stellungen', () => {
+  assert.equal(C.uniqueKey('Servo 3!', PARTS), 'servo32'); assert.equal(C.uniqueKey('ventil', PARTS), 'ventil'); assert.equal(C.uniqueKey('', []), 'teil');
+  assert.deepEqual(C.parsePositions('Pumpen=20; Füllen=110'), [{ name: 'Pumpen', value: '20' }, { name: 'Füllen', value: '110' }]);
+  assert.deepEqual(C.parsePositions('1;2'), [{ name: '1', value: '1' }, { name: '2', value: '2' }]);
+});
+
+test('A-56 Fließbild: Leitung verlässt die Kachel zur Seite des Ziels', () => {
+  const a = { x: 0, y: 0, w: 200, h: 100 };
+  assert.ok(C.linkPath(a, { x: 400, y: 0, w: 200, h: 100 }).startsWith('M200 50 '), 'Ziel rechts');
+  assert.ok(C.linkPath(a, { x: 0, y: 400, w: 200, h: 100 }).startsWith('M100 100 '), 'Ziel unten');
+  assert.ok(C.linkPath({ x: 400, y: 0, w: 200, h: 100 }, a).endsWith(' 200 50'), 'Ziel links');
+});
+
+test('A-57 Simulator: Spritzenpumpe, Heizung und Messwertzeilen', () => {
+  const sim = new SimDevice(); C.configCommands(PARTS).forEach(c => sim.send(c));
+  const v0 = sim.gen.pumpea.vol;
+  sim.send('SET pumpea 6'); for (let i = 0; i < 600; i++) sim.step(0.1);                       /* 60 s mit 6 ml/min */
+  near(v0 - sim.gen.pumpea.vol, 6, 1e-6, 'gefördertes Volumen');
+  sim.send('SET pumpea 600'); for (let i = 0; i < 600; i++) sim.step(0.1);
+  assert.equal(sim.gen.pumpea.vol, 0); assert.equal(sim.gen.pumpea.v, 0, 'leere Spritze hält an');
+  sim.send('SET heizung 40'); for (let i = 0; i < 3000; i++) sim.step(0.1);
+  near(sim.gen.heizung.temp, 40, 0.01, 'Ist-Temperatur');
+  const lines = sim.out.map(parseLine);
+  assert.ok(lines.length > 0 && lines.every(l => l && l.kind === 'val'), 'V-Zeilen werden gelesen');
+  assert.deepEqual(parseLine('V,pumpea,41.50'), { kind: 'val', key: 'pumpea', value: 41.5 });
 });

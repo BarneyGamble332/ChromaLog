@@ -150,3 +150,44 @@ table.seq input[type="text"] { min-width: 150px; } table.seq input[type="number"
   main { padding: 0; max-width: none; } body { background: #fff; }
   .paper { border: 0 !important; padding: 0 !important; max-width: none !important; }
 }
+
+/* Steuerung: Fließbild mit verschiebbaren Kacheln und Leitungen */
+.toolbar.nomb { margin-bottom: 0; } .toolbar.editbar { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.toolbar input[type="text"] { width: 220px; }
+.btn.stopall { background: var(--crit); border-color: var(--crit); color: #fff; font-size: 15px; font-weight: 600; padding: 8px 20px; }
+.ctlsplit { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .ctlsplit { grid-template-columns: minmax(0, 1fr); } }
+.flowcard { padding: 0; overflow: hidden; }
+.flow { overflow: auto; height: min(74vh, 760px); min-height: 420px; }
+.flowinner { position: relative; background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 20px 20px; }
+#flowSvg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
+#flowSvg path.pipe { fill: none; stroke: var(--muted); stroke-width: 2.5; pointer-events: none; }
+#flowSvg path.hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: none; }
+.flow.editing #flowSvg path.hit { pointer-events: stroke; cursor: pointer; }
+.flow.editing #flowSvg path.hit:hover + path.pipe, #flowSvg g:hover path.pipe.del { stroke: var(--crit); }
+.node { position: absolute; width: 224px; background: var(--panel); border: 1px solid var(--muted); border-radius: 6px; display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.node.linkfrom { outline: 2px solid var(--accent); } .flow.linking .node { cursor: crosshair; }
+.node .nh { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; padding: 8px 10px 6px; border-bottom: 1px solid var(--line); }
+.flow.editing .node .nh { cursor: grab; touch-action: none; background: var(--bg); border-radius: 6px 6px 0 0; }
+.node .nn { font-weight: 600; font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; } .node .nt { font-size: 11px; color: var(--muted); }
+.node .nb { padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; }
+.node .nf { font: 11px var(--f-mono); color: var(--muted); padding: 5px 10px 7px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.node .ne { display: flex; gap: 4px; padding: 6px 10px 0; flex-wrap: wrap; }
+.seg { display: flex; flex-wrap: wrap; gap: 4px; } .seg .btn { flex: 1 1 auto; padding: 6px 8px; }
+.node .big { font: 500 22px/1.15 var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; } .node .big .u { font: 400 12px var(--f-body); color: var(--muted); margin-left: 4px; }
+.node .rowv { display: flex; align-items: center; gap: 8px; } .node .rowv input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.node .rowv input[type="number"] { width: 84px; } .node .val { font: 14px var(--f-mono); white-space: nowrap; } .node .lbl { font-size: 11px; color: var(--muted); }
+.node .spark { width: 84px; height: 30px; flex: none; } .node .spark polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.node .barrow { display: flex; flex-direction: column; gap: 3px; } .node .barrow .bar { height: 7px; margin: 0; } .node .barrow .bar i { background: var(--accent); }
+dialog.wide { max-width: min(92vw, 620px); width: 620px; max-height: 88vh; overflow-y: auto; }
+dialog h3 { margin: 0 0 10px; font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--ink); font-family: var(--f-disp); }
+.libgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } @media (max-width: 520px) { .libgrid { grid-template-columns: minmax(0, 1fr); } }
+.libgrid button { text-align: left; font: 13px var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; cursor: pointer; }
+.libgrid button:hover { border-color: var(--accent); } .libgrid small { display: block; color: var(--muted); font-size: 11px; }
+.libgroup { font: 600 12px var(--f-disp); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 12px 0 6px; }
+.steps { list-style: none; margin: 10px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.steps li { border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.steps li.cur { border-color: var(--accent); background: var(--bg); } .steps li.past { opacity: .6; }
+.steps select, .steps input { width: auto; min-width: 0; padding: 4px 6px; font-size: 13px; } .steps input[type="number"] { width: 72px; }
+.steps .ix { font: 12px var(--f-mono); color: var(--muted); width: 18px; }
+.console.short { height: 150px; }

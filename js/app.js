@@ -4,7 +4,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const CH = ['uv', 'cond', 'press', 'temp', 'flow', 'b'];
-const APP_VERSION = '0.3';
+const APP_VERSION = '0.4';
 
 const DEFAULT_METHODS = [
   { id: 'm-screening', name: 'Abwasser-Screening (Gradient)', column: 'C18, 100 × 4,6 mm', solventA: 'Wasser + 0,1 % Ameisensäure', solventB: 'Acetonitril',
@@ -61,10 +61,10 @@ async function connectDevice(kind) {
     $('#connHint').textContent = (e && e.name === 'SecurityError') ? t(kind === 'ble' ? 'ble_blocked' : 'usb_blocked') : t('conn_failed') + ' ' + (e && e.message || '');
     return;
   }
-  S.dev = dev; S.stage1 = false; S.last = null; $('#connHint').textContent = '';
+  S.dev = dev; S.stage1 = false; S.last = null; CTL.fbDone = false; $('#connHint').textContent = '';
   CH.concat('t').forEach(k => { if (S.mon[k]) S.mon[k].length = 0; });
   if (kind === 'sim') dev.speed = +$('#selSpeed').value;
-  cmd('RATE ' + curMethod().rate);
+  cmd('RATE ' + curMethod().rate); ctlConfigure();
   logAudit('connect', kind + (dev.name ? ' ' + dev.name : ''));
   S.dirty = true;
 }
@@ -74,6 +74,7 @@ function onLine(line) {
   const s = parseLine(line);
   if (!s) { if (line.trim()) log(line); return; }
   if (S.tab === 'system') log(line);
+  if (s.kind === 'val') { ctlValue(s.key, s.value); S.dirty = true; return; }
   if (s.kind === 'stage1' && !S.stage1) { S.stage1 = true; toast(t('t_stage1')); }
   if (s.uv != null) s.uv *= 1000;                       /* intern in mAU */
   S.last = s;
@@ -110,7 +111,7 @@ function startRun(opts) {
   };
   if (S.dev.kind === 'sim') S.dev.sample = { type, conc: S.run.conc };
   cmd('LED 1'); S.led = true; cmd('RATE ' + m.rate); cmd('FLOW ' + m.flow.toFixed(3)); cmd('PCTB ' + S.run.lastB.toFixed(1)); cmd('VALVE LOAD');
-  S.phase = 'equil'; S.view = { auto: true }; S.dirty = true; renderControls();
+  S.phase = 'equil'; S.view = { auto: true }; S.dirty = true; renderControls(); if (CTL.run) ctlProcEnd('stopped');
 }
 function beginRun(s) {
   const r = S.run;
@@ -526,7 +527,7 @@ function renderAudit() {
 }
 
 /* ---------- Navigation, Sprache, Start ---------- */
-const TABS = ['messen', 'methoden', 'sequenz', 'laeufe', 'auswertung', 'kalibrierung', 'system', 'bericht'];
+const TABS = ['messen', 'steuerung', 'methoden', 'sequenz', 'laeufe', 'auswertung', 'kalibrierung', 'system', 'bericht'];
 function route() {
   const h = location.hash.replace('#', ''); S.tab = TABS.includes(h) ? h : 'messen';
   TABS.forEach(n => { $('#v-' + n).hidden = n !== S.tab; });
@@ -535,6 +536,7 @@ function route() {
   if (S.tab === 'auswertung') { if (!S.aRun && S.runs.length) openAnalysis(S.runs[0].id); else renderAnalysis(); }
   if (S.tab === 'kalibrierung') renderCal();
   if (S.tab === 'sequenz') renderSeq();
+  if (S.tab === 'steuerung') renderCtl();
   if (S.tab === 'bericht') renderReport();
   if (S.tab === 'system') { renderConsole(); renderAudit(); }
   S.dirty = true;
@@ -542,10 +544,10 @@ function route() {
 function setLang(l) {
   LANG = l; try { localStorage.setItem('chromalog.lang', l); } catch (e) {}
   applyI18n(); $('#btnLang').textContent = l === 'de' ? 'EN' : 'DE'; $('#selLang').value = l;
-  renderControls(); renderRuns(); fillRunSelect(); renderMethodList(); if (S.tab === 'methoden') renderEditor(); renderAnalysis(); renderAudit(); if (S.tab === 'kalibrierung') renderCal(); if (S.tab === 'sequenz') renderSeq(); if (S.tab === 'bericht') renderReport(); S.dirty = true;
+  renderControls(); renderRuns(); fillRunSelect(); renderMethodList(); if (S.tab === 'methoden') renderEditor(); renderAnalysis(); renderAudit(); if (S.tab === 'kalibrierung') renderCal(); if (S.tab === 'sequenz') renderSeq(); if (S.tab === 'bericht') renderReport(); if (S.tab === 'steuerung') renderCtl(); S.dirty = true;
 }
 function frame() {
-  if (S.dirty) { S.dirty = false; renderStatus(); if (S.tab === 'messen') drawLive(); if (S.tab === 'system') renderConsole(); }
+  if (S.dirty) { S.dirty = false; renderStatus(); if (S.tab === 'messen') drawLive(); if (S.tab === 'system') renderConsole(); if (S.tab === 'steuerung') ctlLive(); }
   requestAnimationFrame(frame);
 }
 function bind() {
@@ -644,6 +646,7 @@ async function init() {
     d.uv = d.uv.map(v => +(v * 1000).toFixed(4));
     await storeRun({ id: uid(), name: 'Kläranlagenablauf, dotiert', type: 'sample', conc: null, vol: 20, site: '', methodId: m.id, method: m, device: 'sim', simulated: true, example: true, aborted: false, startedAt: new Date().toISOString(), data: d }, 'example run created');
   }
+  await ctlInit();
   setLang(LANG); route(); requestAnimationFrame(frame);
   if (!Store.persistent) toast(t('t_storage'), true);
   await connectDevice('sim');

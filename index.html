@@ -21,6 +21,7 @@
 </header>
 <nav class="tabs" id="tabs">
   <a href="#messen" data-i18n="tab_measure"></a>
+  <a href="#steuerung" data-i18n="tab_ctl"></a>
   <a href="#methoden" data-i18n="tab_methods"></a>
   <a href="#sequenz" data-i18n="tab_seq"></a>
   <a href="#laeufe" data-i18n="tab_runs"></a>
@@ -81,6 +82,36 @@
           <button class="btn" id="btnLed" type="button"></button>
           <button class="btn danger" id="btnPumpStop" type="button" data-i18n="pumps_stop"></button>
         </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="v-steuerung" class="view" hidden>
+  <div class="card">
+    <div class="toolbar nomb">
+      <label class="inl"><span data-i18n="ctl_layout"></span> <select id="ctlSel"></select></label>
+      <button class="btn" id="ctlNew" type="button" data-i18n="ctl_newlayout"></button>
+      <span class="grow"></span>
+      <button class="btn" id="ctlEdit" type="button"></button>
+      <button class="btn primary" id="ctlAdd" type="button" data-i18n="ctl_add"></button>
+      <button class="btn stopall" id="ctlStopAll" type="button" data-i18n="ctl_stopall"></button>
+    </div>
+    <div class="toolbar nomb editbar" id="ctlEditBar" hidden>
+      <label class="inl"><span data-i18n="ctl_rename"></span> <input id="ctlName" type="text"></label>
+      <button class="btn" id="ctlExport" type="button" data-i18n="ctl_export"></button>
+      <label class="btn filebtn"><span data-i18n="ctl_import"></span><input id="ctlImport" type="file" accept=".json,application/json" hidden></label>
+      <button class="btn danger" id="ctlDel" type="button" data-i18n="ctl_dellayout"></button>
+    </div>
+    <p class="hint" id="ctlHint"></p>
+  </div>
+  <div class="ctlsplit">
+    <div class="card flowcard"><div class="flow" id="flow"><div class="flowinner" id="flowInner"><svg id="flowSvg" aria-hidden="true"></svg></div></div></div>
+    <div class="stack">
+      <div class="card" id="procCard"></div>
+      <div class="card">
+        <h2 data-i18n="ctl_log"></h2>
+        <pre class="console short" id="ctlLog"></pre>
       </div>
     </div>
   </div>
@@ -252,6 +283,8 @@
 </main>
 
 <div id="toast" role="status" aria-live="polite"></div>
+<dialog id="libDlg" class="wide"></dialog>
+<dialog id="partDlg" class="wide"></dialog>
 <dialog id="dlg"><p id="dlgText"></p><div class="row"><button class="btn danger" id="dlgYes" type="button"></button><button class="btn" id="dlgNo" type="button"></button></div></dialog>
 
 <script src="js/i18n.js"></script>
@@ -259,6 +292,8 @@
 <script src="js/device.js"></script>
 <script src="js/analysis.js"></script>
 <script src="js/plot.js"></script>
+<script src="js/control.js"></script>
+<script src="js/steuerung.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
