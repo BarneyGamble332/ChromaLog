@@ -1,3 +1,10 @@
+/* Schriften liegen im Repo (IBM Plex, SIL Open Font License), es wird nichts von fremden Servern geladen. */
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 500; font-display: swap; src: url("../fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("../fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans Condensed"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/ibm-plex-sans-condensed-latin-600-normal.woff2") format("woff2"); }
 /* Layout: Messplatz – links das Chromatogramm, rechts Anzeigen und Bedienung; am Handy untereinander. */
 :root {
   --bg: #edf0f4; --panel: #ffffff; --ink: #17202b; --muted: #5b6878; --line: #d3d9e1;
