@@ -24,6 +24,7 @@
   <a href="#methoden" data-i18n="tab_methods"></a>
   <a href="#laeufe" data-i18n="tab_runs"></a>
   <a href="#auswertung" data-i18n="tab_analysis"></a>
+  <a href="#kalibrierung" data-i18n="tab_cal"></a>
   <a href="#system" data-i18n="tab_system"></a>
 </nav>
 
@@ -143,6 +144,30 @@
         <h2 data-i18n="a_meta"></h2>
         <dl class="meta" id="aMeta"></dl>
       </div>
+    </div>
+  </div>
+</section>
+
+<section id="v-kalibrierung" class="view" hidden>
+  <div class="card">
+    <div class="toolbar">
+      <label class="inl"><span data-i18n="method"></span> <select id="cSel"></select></label>
+      <label class="chk"><input type="checkbox" id="cZero"> <span data-i18n="c_zero"></span></label>
+      <span class="grow"></span>
+      <span class="hint nomargin" id="cSaved"></span>
+      <button class="btn primary" id="cSave" type="button" data-i18n="c_save"></button>
+    </div>
+    <p class="hint" data-i18n="c_hint"></p>
+  </div>
+  <div class="split even">
+    <div class="card">
+      <h2 data-i18n="c_standards"></h2>
+      <div class="tablewrap" id="cRuns"></div>
+    </div>
+    <div class="card">
+      <h2 data-i18n="c_curve"></h2>
+      <div class="tablewrap" id="cTable"></div>
+      <div class="chartwrap small" id="cChart"><canvas id="cvCal"></canvas></div>
     </div>
   </div>
 </section>

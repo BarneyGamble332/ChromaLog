@@ -133,3 +133,8 @@ h3 { font: 600 12px var(--f-disp); letter-spacing: .06em; text-transform: upperc
 dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 18px; max-width: 360px; }
 dialog::backdrop { background: rgba(0, 0, 0, .45); }
 dialog p { margin: 0; }
+
+.hint.nomargin { margin: 0; }
+tr.rowsel td { background: var(--bg); }
+tr.click { cursor: pointer; }
+#cChart { margin-top: 12px; height: 260px; }

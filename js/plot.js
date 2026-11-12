@@ -133,6 +133,7 @@ class Plot {
       pane.series.forEach(s => {
         const Y = s.axis === 'R' ? YR : YL, n = s.x.length; if (!n || !Y) return;
         const i0 = Math.max(0, lowerBound(s.x, sp.x0) - 1), i1 = Math.min(n, lowerBound(s.x, sp.x1) + 1), cnt = i1 - i0;
+        if (s.points) { ctx.fillStyle = s.color; ctx.strokeStyle = C.panel; ctx.lineWidth = 1.5; for (let i = i0; i < i1; i++) { ctx.beginPath(); ctx.arc(X(s.x[i]), Y(s.y[i]), 5, 0, 6.3); ctx.fill(); ctx.stroke(); } return; }
         const stepN = Math.max(1, Math.floor(cnt / (r.w * 2)));
         ctx.strokeStyle = s.color; ctx.lineWidth = s.width || 1.4; ctx.setLineDash(s.dash || []); ctx.lineJoin = 'round'; ctx.beginPath();
         let pen = false;
@@ -153,7 +154,7 @@ class Plot {
       /* Fadenkreuz */
       if (this.cur != null && this.cur >= sp.x0 && this.cur <= sp.x1) {
         const px = X(this.cur); ctx.strokeStyle = C.ink; ctx.globalAlpha = 0.45; ctx.beginPath(); ctx.moveTo(px, r.y); ctx.lineTo(px, r.y + r.h); ctx.stroke(); ctx.globalAlpha = 1;
-        const parts = pi === 0 ? ['t ' + fmt(this.cur, 2) + ' ' + (sp.xUnit || '')] : [];
+        const parts = pi === 0 ? [(sp.xName || 't') + ' ' + fmt(this.cur, 2) + ' ' + (sp.xUnit || '')] : [];
         pane.series.forEach(s => { if (!s.x.length || !s.label) return; const k = Math.min(s.x.length - 1, lowerBound(s.x, this.cur)); parts.push(s.label + ' ' + fmt(s.y[k], s.dec == null ? 2 : s.dec)); });
         const txt = parts.join('   '); ctx.font = font; const tw = ctx.measureText(txt).width + 12;
         const bx = Math.min(r.x + r.w - tw - 4, Math.max(r.x + 4, px + 8));

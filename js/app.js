@@ -21,9 +21,9 @@ const S = {
   methods: [], runs: [], auditLog: [], dev: null, last: null, stage1: false, led: true,
   mon: { t: [], uv: [], cond: [], press: [], temp: [], b: [] }, phase: 'idle', run: null,
   view: { auto: true }, aView: { auto: true }, aRun: null, aRes: null, editM: null, editDirty: false,
-  console: [], dirty: true, tab: 'messen'
+  console: [], dirty: true, tab: 'messen', cal: { excluded: {}, sel: null, res: null }
 };
-let plotLive, plotAna, plotGrad;
+let plotLive, plotAna, plotGrad, plotCal;
 
 /* ---------- kleine Helfer ---------- */
 let toastTimer;
@@ -191,7 +191,8 @@ function drawLive() {
 }
 
 /* ---------- Methoden ---------- */
-function fillMethodSelect() { const cur = $('#selMethod').value; $('#selMethod').innerHTML = S.methods.map(m => '<option value="' + esc(m.id) + '">' + esc(m.name) + '</option>').join(''); if (S.methods.some(m => m.id === cur)) $('#selMethod').value = cur; }
+function fillMethodSelect() { const cur = $('#selMethod').value; $('#selMethod').innerHTML = S.methods.map(m => '<option value="' + esc(m.id) + '">' + esc(m.name) + '</option>').join(''); if (S.methods.some(m => m.id === cur)) $('#selMethod').value = cur;
+  const c2 = $('#cSel').value; $('#cSel').innerHTML = $('#selMethod').innerHTML; $('#cSel').value = S.methods.some(m => m.id === c2) ? c2 : $('#selMethod').value; }
 function renderMethodList() { $('#mList').innerHTML = S.methods.map(m => '<button type="button" data-id="' + esc(m.id) + '" class="' + (S.editM && S.editM.id === m.id ? 'sel' : '') + '">' + esc(m.name) + '</button>').join(''); }
 function selectMethod(id) { const m = S.methods.find(q => q.id === id) || S.methods[0]; S.editM = m ? clone(m) : null; S.editDirty = false; renderMethodList(); renderEditor(); }
 function renderEditor() {
@@ -237,10 +238,14 @@ async function saveMethod() {
   if (!m.gradient.length) m.gradient.push({ t: 0, b: 5 });
   m.rate = Math.max(1, Math.min(50, +m.rate || 10)); m.runtime = Math.max(0.5, +m.runtime || 1); m.name = m.name || 'Methode';
   m.changedAt = new Date().toISOString();
-  const i = S.methods.findIndex(q => q.id === m.id), copy = clone(m);
+  const i = S.methods.findIndex(q => q.id === m.id);
+  const sig = q => JSON.stringify([q.flow, q.gradient, q.compounds, q.column, q.solventA, q.solventB]);
+  if (i >= 0 && m.calibration && sig(S.methods[i]) !== sig(m)) { delete m.calibration; toast(t('c_reset'), true); }
+  const copy = clone(m);
   if (i >= 0) S.methods[i] = copy; else S.methods.push(copy);
   await Store.put('methods', copy); await logAudit('method saved', m.name);
-  fillMethodSelect(); renderMethodList(); renderEditor(); markDirty(false); toast(t('saved'));
+  const hadToast = $('#toast').classList.contains('crit');
+  fillMethodSelect(); renderMethodList(); renderEditor(); markDirty(false); if (!hadToast) toast(t('saved'));
 }
 
 /* ---------- Läufe ---------- */
@@ -304,9 +309,10 @@ function renderAnalysis() {
   if (!r || !res) { $('#peakTable').innerHTML = '<p class="hint">' + t('a_none') + '</p>'; $('#aMeta').innerHTML = ''; if (plotAna) { plotAna.spec = null; const c = $('#cvAna'); c.getContext('2d').clearRect(0, 0, c.width, c.height); } return; }
   const n = v => '<td class="n">' + v + '</td>';
   $('#peakTable').innerHTML = !res.peaks.length ? '<p class="hint">' + t('a_nopeaks') + '</p>' :
-    '<table><tr><th class="n">#</th><th>' + t('p_name') + '</th>' + ['p_rt', 'p_area', 'p_areap', 'p_height', 'p_w', 'p_n', 'p_tail', 'p_rs', 'p_sn'].map(k => '<th class="n">' + t(k) + '</th>').join('') + '</tr>' +
-    res.peaks.map((p, i) => '<tr>' + n(i + 1) + '<td>' + (p.name ? esc(p.name) : '<span class="hint">' + t('unknown') + '</span>') + '</td>' + n(fmt(p.rt, 3)) + n(fmt(p.area, 1)) + n(fmt(p.areaPct, 1)) + n(fmt(p.height, 2)) +
-      n(fmt(p.w50, 1)) + n(fmt(p.plates, 0)) + n(fmt(p.tailing, 2)) + n(fmt(p.rs, 1)) + n(fmt(p.sn, 0)) + '</tr>').join('') + '</table>';
+    '<table><tr><th class="n">#</th><th>' + t('p_name') + '</th><th class="n">' + t('p_conc') + '</th>' + ['p_rt', 'p_area', 'p_areap', 'p_height', 'p_w', 'p_n', 'p_tail', 'p_rs', 'p_sn'].map(k => '<th class="n">' + t(k) + '</th>').join('') + '</tr>' +
+    res.peaks.map((p, i) => '<tr>' + n(i + 1) + '<td>' + (p.name ? esc(p.name) : '<span class="hint">' + t('unknown') + '</span>') + '</td>' + n(concCell(r, p)) + n(fmt(p.rt, 3)) + n(fmt(p.area, 1)) + n(fmt(p.areaPct, 1)) + n(fmt(p.height, 2)) +
+      n(fmt(p.w50, 1)) + n(fmt(p.plates, 0)) + n(fmt(p.tailing, 2)) + n(fmt(p.rs, 1)) + n(fmt(p.sn, 0)) + '</tr>').join('') + '</table>' +
+    (res.peaks.some(p => { const c = concOf(r, p); return c && c.out; }) ? '<p class="hint">' + t('c_outside') + '</p>' : '');
   const row = (k, v, mono) => '<dt>' + t(k) + '</dt><dd' + (mono ? ' class="mono"' : '') + '>' + v + '</dd>';
   $('#aMeta').innerHTML = row('sample', esc(r.name) + ' (' + t('ty_' + r.type) + (r.conc != null ? ', ' + fmt(r.conc, 1) + ' mg/l' : '') + ')') + row('method', esc(r.method.name)) + row('a_started', esc(dateStr(r.startedAt))) +
     (r.site ? row('site', esc(r.site)) : '') + row('vol', fmt(r.vol, 0) + ' µl') + row('a_points', fmt(r.data.t.length, 0)) + row('a_noise', fmt(res.noise, 3) + ' mAU') + row('a_hash', r.hash ? r.hash.slice(0, 16) + '…' : '–', true);
@@ -325,9 +331,72 @@ function drawAna() {
 }
 async function saveAnalysis() {
   const r = S.aRun, res = S.aRes; if (!r || !res) return;
+  res.peaks.forEach(p => { const c = concOf(r, p); p.conc = c ? c.v : null; });
   r.analysis = { params: res.params, peaks: res.peaks, noise: res.noise, at: new Date().toISOString(), auto: false };
   await Store.put('runs', r); await logAudit('analysis saved', r.name + ' · ' + res.peaks.length + ' peaks · S/N ' + res.params.sn);
   renderRuns(); toast(t('saved'));
+}
+
+/* ---------- Kalibrierung und Quantifizierung ---------- */
+function concOf(run, pk) {
+  const m = S.methods.find(q => q.id === run.methodId), c = m && m.calibration && pk.name && m.calibration.compounds[pk.name];
+  if (!c || !(c.slope > 0)) return null;
+  const v = (pk.area - c.intercept) / c.slope;
+  return { v, out: v < c.min || v > c.max };
+}
+function concCell(run, pk) { const c = concOf(run, pk); return c ? fmt(c.v, 2) + (c.out ? ' *' : '') : '–'; }
+const calMethod = () => S.methods.find(m => m.id === $('#cSel').value) || S.methods[0];
+const calRuns = m => S.runs.filter(r => r.type === 'standard' && r.methodId === m.id && r.conc > 0 && !r.aborted && r.analysis).sort((a, b) => a.conc - b.conc);
+function computeCal(m) {
+  const runs = calRuns(m).filter(r => !S.cal.excluded[r.id]), zero = $('#cZero').checked, compounds = {};
+  (m.compounds || []).forEach(c => {
+    const pts = [];
+    runs.forEach(r => { const pk = r.analysis.peaks.filter(p => p.name === c.name).sort((a, b) => b.area - a.area)[0]; if (pk) pts.push({ conc: r.conc, area: pk.area, sn: pk.sn }); });
+    compounds[c.name] = Object.assign({ points: pts }, linFit(pts, zero));
+  });
+  return { zero, runs: runs.map(r => r.id), compounds };
+}
+function renderCal() {
+  const m = calMethod(); if (!m) return;
+  const all = calRuns(m), res = S.cal.res = computeCal(m), names = Object.keys(res.compounds);
+  if (!names.includes(S.cal.sel)) S.cal.sel = names[0] || null;
+  $('#cSaved').textContent = m.calibration ? t('c_savedat') + ' ' + dateStr(m.calibration.at) : t('c_notsaved');
+  $('#cSave').disabled = !names.some(k => res.compounds[k].slope > 0);
+  $('#cRuns').innerHTML = !all.length
+    ? '<p class="hint">' + t('c_none') + '</p><div class="row"><button type="button" class="btn" id="cExample">' + t('c_example') + '</button></div>'
+    : '<table><tr><th>' + t('c_use') + '</th><th>' + t('r_name') + '</th><th class="n">' + t('conc') + '</th><th>' + t('r_date') + '</th><th class="n">' + t('r_peaks') + '</th></tr>' +
+      all.map(r => '<tr><td><input type="checkbox" data-run="' + r.id + '"' + (S.cal.excluded[r.id] ? '' : ' checked') + ' aria-label="' + esc(r.name) + '"></td><td>' + esc(r.name) + (r.simulated ? '<span class="badge">' + t('r_sim') + '</span>' : '') + '</td><td class="n">' + fmt(r.conc, 2) +
+        '</td><td>' + esc(dateStr(r.startedAt)) + '</td><td class="n">' + r.analysis.peaks.filter(p => p.name).length + '</td></tr>').join('') + '</table>';
+  const n = v => '<td class="n">' + v + '</td>';
+  $('#cTable').innerHTML = !names.length ? '<p class="hint">' + t('m_comp') + ': –</p>' :
+    '<table><tr><th>' + t('p_name') + '</th>' + ['c_n', 'c_slope', 'c_icpt', 'c_r2', 'c_range', 'c_lod'].map(k => '<th class="n">' + t(k) + '</th>').join('') + '</tr>' +
+    names.map(k => { const c = res.compounds[k]; return '<tr class="click' + (k === S.cal.sel ? ' rowsel' : '') + '" data-c="' + esc(k) + '"><td>' + esc(k) + '</td>' + n(c.n) + n(fmt(c.slope, 2)) + n(fmt(c.intercept, 1)) + n(fmt(c.r2, 4)) +
+      n(c.min == null ? '–' : fmt(c.min, 1) + ' – ' + fmt(c.max, 1)) + n(fmt(c.lod, 2)) + '</tr>'; }).join('') + '</table>';
+  drawCal();
+}
+function drawCal() {
+  const res = S.cal.res, c = res && S.cal.sel && res.compounds[S.cal.sel];
+  if (!c || !c.points.length) { plotCal.spec = null; const cv = $('#cvCal'); cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); return; }
+  const css = k => plotCal.css(k), x1 = c.max * 1.1 || 1, series = [];
+  if (c.slope != null) series.push({ x: [0, x1], y: [c.intercept, c.intercept + c.slope * x1], color: css('--muted'), width: 1.3, dash: [5, 4] });
+  series.push({ x: c.points.map(q => q.conc), y: c.points.map(q => q.area), color: css('--c-uv'), points: true, label: S.cal.sel, dec: 1 });
+  plotCal.set({ x0: 0, x1, xLabel: 'mg/l', xUnit: 'mg/l', xName: 'c', panes: [{ h: 1, left: { label: S.cal.sel + ' · ' + t('c_area'), min: 0 }, series }] });
+}
+async function saveCal() {
+  const m = calMethod(), res = S.cal.res; if (!m || !res) return;
+  m.calibration = { at: new Date().toISOString(), zero: res.zero, runs: res.runs, compounds: res.compounds };
+  await Store.put('methods', m);
+  if (S.editM && S.editM.id === m.id && !S.editDirty) S.editM = clone(m);
+  await logAudit('calibration saved', m.name + ' · ' + Object.keys(res.compounds).filter(k => res.compounds[k].slope > 0).map(k => k + ' R² ' + (res.compounds[k].r2 == null ? '–' : res.compounds[k].r2.toFixed(4))).join(', '));
+  renderCal(); toast(t('saved'));
+}
+async function addExampleStandards() {
+  const m = clone(calMethod());
+  for (const conc of [1, 5, 20]) {
+    const d = simulateRun(m, { type: 'standard', conc }); d.uv = d.uv.map(v => +(v * 1000).toFixed(4));
+    await storeRun({ id: uid(), name: 'Standard ' + conc + ' mg/l', type: 'standard', conc, vol: 20, site: '', methodId: m.id, method: m, device: 'sim', simulated: true, example: true, aborted: false, startedAt: new Date().toISOString(), data: d }, 'example run created');
+  }
+  renderCal();
 }
 
 /* ---------- System ---------- */
@@ -338,20 +407,21 @@ function renderAudit() {
 }
 
 /* ---------- Navigation, Sprache, Start ---------- */
-const TABS = ['messen', 'methoden', 'laeufe', 'auswertung', 'system'];
+const TABS = ['messen', 'methoden', 'laeufe', 'auswertung', 'kalibrierung', 'system'];
 function route() {
   const h = location.hash.replace('#', ''); S.tab = TABS.includes(h) ? h : 'messen';
   TABS.forEach(n => { $('#v-' + n).hidden = n !== S.tab; });
   document.querySelectorAll('#tabs a').forEach(a => { if (a.getAttribute('href') === '#' + S.tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   if (S.tab === 'methoden') { if (!S.editM) selectMethod(S.methods[0] && S.methods[0].id); else renderEditor(); }
   if (S.tab === 'auswertung') { if (!S.aRun && S.runs.length) openAnalysis(S.runs[0].id); else renderAnalysis(); }
+  if (S.tab === 'kalibrierung') renderCal();
   if (S.tab === 'system') { renderConsole(); renderAudit(); }
   S.dirty = true;
 }
 function setLang(l) {
   LANG = l; try { localStorage.setItem('chromalog.lang', l); } catch (e) {}
   applyI18n(); $('#btnLang').textContent = l === 'de' ? 'EN' : 'DE'; $('#selLang').value = l;
-  renderControls(); renderRuns(); fillRunSelect(); renderMethodList(); if (S.tab === 'methoden') renderEditor(); renderAnalysis(); renderAudit(); S.dirty = true;
+  renderControls(); renderRuns(); fillRunSelect(); renderMethodList(); if (S.tab === 'methoden') renderEditor(); renderAnalysis(); renderAudit(); if (S.tab === 'kalibrierung') renderCal(); S.dirty = true;
 }
 function frame() {
   if (S.dirty) { S.dirty = false; renderStatus(); if (S.tab === 'messen') drawLive(); if (S.tab === 'system') renderConsole(); }
@@ -390,6 +460,11 @@ function bind() {
   $('#aReint').onclick = integrate; $('#aSave').onclick = saveAnalysis;
   $('#aAuto').onclick = () => { S.aView = { auto: true }; drawAna(); };
   $('#aCsv').onclick = () => { if (S.aRun) exportRun(S.aRun, 'csv'); };
+  $('#cSel').onchange = () => { S.cal.excluded = {}; S.cal.sel = null; $('#cZero').checked = !!(calMethod().calibration && calMethod().calibration.zero); renderCal(); };
+  $('#cZero').onchange = renderCal; $('#cSave').onclick = saveCal;
+  $('#cRuns').addEventListener('change', e => { const id = e.target.dataset.run; if (id) { S.cal.excluded[id] = !e.target.checked; renderCal(); } });
+  $('#cRuns').addEventListener('click', e => { if (e.target.id === 'cExample') addExampleStandards(); });
+  $('#cTable').onclick = e => { const tr = e.target.closest('tr[data-c]'); if (tr) { S.cal.sel = tr.dataset.c; renderCal(); } };
   $('#btnConnect').onclick = () => connectDevice($('#selTr').value);
   $('#btnDisconnect').onclick = disconnectDevice;
   $('#selSpeed').onchange = e => { if (S.dev && S.dev.kind === 'sim') S.dev.speed = +e.target.value; };
@@ -404,6 +479,7 @@ async function init() {
   S.auditLog = (await Store.all('audit')).sort((a, b) => b.ts.localeCompare(a.ts));
   plotLive = new Plot($('#cvLive'), (a, b, y) => { S.view = newView(S.view, a, b, y); S.dirty = true; });
   plotAna = new Plot($('#cvAna'), (a, b, y) => { S.aView = newView(S.aView, a, b, y); drawAna(); });
+  plotCal = new Plot($('#cvCal'));
   fillMethodSelect(); bind();
   if (!S.runs.length) {
     const m = clone(S.methods[0]), d = simulateRun(m, { type: 'sample' });

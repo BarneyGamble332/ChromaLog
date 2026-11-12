@@ -2,18 +2,20 @@
 
 Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft als Web-App im Browser (Linux-PC, Android) und später als Android-App.
 
-## Stand Version 0.1
+## Stand Version 0.2
 - Live-Chromatogramm in Echtzeit: UV 275 nm, dazu Druck, Leitfähigkeit, Temperatur und Gradient
 - Gerätesteuerung: Lauf mit Equilibrieren, Autozero, Injektion, Gradient-Tabelle, Ventil-Ereignissen und Druckabschaltung; Handsteuerung
 - Anschlüsse: Simulator (ohne Hardware), USB seriell, Bluetooth Low Energy (Nordic UART oder HM-10); WLAN ist vorbereitet
 - Methoden mit Gradient, Ventil-Ereignissen und Stoffliste
 - Läufe speichern, als CSV/JSON exportieren, JSON importieren
 - Erste Auswertung: Basislinie, Peakerkennung, Integration, tR, Fläche, Höhe, Halbwertsbreite, Bodenzahl, Tailing, Auflösung, S/N, Zuordnung über die Stoffliste
+- Kalibrierung und Quantifizierung: Kalibriergeraden je Stoff aus Standard-Läufen (Steigung, Achsenabschnitt, R², Bereich, geschätzte Nachweisgrenze), Konzentration in der Peaktabelle
+- Zoomfenster: Rechteck aufziehen vergrößert den Ausschnitt
 - Nachvollziehbarkeit: Rohdaten mit SHA-256-Prüfsumme, Protokoll aller Aktionen
 - Deutsch und Englisch
 
 ## Starten
-`index.html` über GitHub Pages öffnen (Chrome oder Chromium). USB und Bluetooth brauchen eine https-Adresse oder localhost.
+https://barneygamble332.github.io/ChromaLog/ in Chrome oder Chromium öffnen. USB und Bluetooth brauchen eine https-Adresse oder localhost.
 
 ## Geräteprotokoll (Textzeilen)
 | Richtung | Zeile |

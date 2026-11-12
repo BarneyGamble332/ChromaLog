@@ -121,4 +121,21 @@ function analyze(tMin, yIn, params, compounds) {
   return res;
 }
 
-if (typeof module !== 'undefined') module.exports = { analyze, ANALYSIS_DEFAULTS };
+/* Kalibriergerade Fläche = Steigung · Konzentration + Achsenabschnitt (kleinste Quadrate) */
+function linFit(pts, zero) {
+  const n = pts.length, none = { slope: null, intercept: null, r2: null, n, min: null, max: null, lod: null };
+  if (!n || (!zero && n < 2)) return none;
+  let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  pts.forEach(q => { sx += q.conc; sy += q.area; sxx += q.conc * q.conc; sxy += q.conc * q.area; });
+  let slope, icpt;
+  if (zero) { if (!sxx) return none; slope = sxy / sxx; icpt = 0; }
+  else { const den = n * sxx - sx * sx; if (!den) return none; slope = (n * sxy - sx * sy) / den; icpt = (sy - slope * sx) / n; }
+  const my = sy / n; let sst = 0, sse = 0;
+  pts.forEach(q => { sst += Math.pow(q.area - my, 2); sse += Math.pow(q.area - (slope * q.conc + icpt), 2); });
+  const low = pts.reduce((a, b) => (b.conc < a.conc ? b : a));
+  return { slope, intercept: icpt, r2: (n >= (zero ? 2 : 3) && sst > 0) ? 1 - sse / sst : null, n,
+    min: Math.min.apply(null, pts.map(q => q.conc)), max: Math.max.apply(null, pts.map(q => q.conc)),
+    lod: low.sn ? low.conc * 3 / low.sn : null };
+}
+
+if (typeof module !== 'undefined') module.exports = { analyze, ANALYSIS_DEFAULTS, linFit };
