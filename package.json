@@ -1,0 +1,7 @@
+{
+  "name": "chromalog",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Chromatographie-Software für die Mini-HPLC",
+  "scripts": { "test": "node --test tests/*.test.js" }
+}

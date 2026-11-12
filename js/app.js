@@ -461,9 +461,7 @@ function seqEnd(ok) {
 /* ---------- Kalibrierung und Quantifizierung ---------- */
 function concOf(run, pk) {
   const m = S.methods.find(q => q.id === run.methodId), c = m && m.calibration && pk.name && m.calibration.compounds[pk.name];
-  if (!c || !(c.slope > 0)) return null;
-  const v = (pk.area - c.intercept) / c.slope;
-  return { v, out: v < c.min || v > c.max };
+  return quantify(pk.area, c);
 }
 function concCell(run, pk) { const c = concOf(run, pk); return c ? fmt(c.v, 2) + (c.out ? ' *' : '') : '–'; }
 const calMethod = () => S.methods.find(m => m.id === $('#cSel').value) || S.methods[0];

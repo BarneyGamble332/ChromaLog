@@ -151,4 +151,11 @@ function linFit(pts, zero) {
     lod: low.sn ? low.conc * 3 / low.sn : null };
 }
 
-if (typeof module !== 'undefined') module.exports = { analyze, ANALYSIS_DEFAULTS, linFit };
+/* Konzentration aus der Peakfläche; out = außerhalb des kalibrierten Bereichs */
+function quantify(area, c) {
+  if (!c || !(c.slope > 0)) return null;
+  const v = (area - c.intercept) / c.slope;
+  return { v, out: v < c.min || v > c.max };
+}
+
+if (typeof module !== 'undefined') module.exports = { analyze, ANALYSIS_DEFAULTS, linFit, quantify };

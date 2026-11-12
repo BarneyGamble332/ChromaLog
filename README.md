@@ -2,7 +2,7 @@
 
 Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft als Web-App im Browser (Linux-PC, Android) und später als Android-App.
 
-## Stand Version 0.2
+## Stand Version 0.3
 - Live-Chromatogramm in Echtzeit: UV 275 nm, dazu Druck, Leitfähigkeit, Temperatur und Gradient
 - Gerätesteuerung: Lauf mit Equilibrieren, Autozero, Injektion, Gradient-Tabelle, Ventil-Ereignissen und Druckabschaltung; Handsteuerung
 - Anschlüsse: Simulator (ohne Hardware), USB seriell, Bluetooth Low Energy (Nordic UART oder HM-10); WLAN ist vorbereitet
@@ -13,6 +13,8 @@ Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft a
 - Zoomfenster: Rechteck aufziehen vergrößert den Ausschnitt
 - Vergleich: bis zu 5 weitere Läufe über das Chromatogramm legen
 - Manuelle Integration: Integrationsgrenzen selbst ziehen, Peaks entfernen; die Änderungen werden mit dem Ergebnis gespeichert
+- Sequenzen: Probenliste (Blindwert, Standards, Proben) läuft nacheinander ab, auf Wunsch mit Bestätigung vor jeder Probe
+- Messbericht zum Drucken oder als PDF/HTML speichern
 - Nachvollziehbarkeit: Rohdaten mit SHA-256-Prüfsumme, Protokoll aller Aktionen
 - Deutsch und Englisch
 
@@ -25,6 +27,10 @@ https://barneygamble332.github.io/ChromaLog/ in Chrome oder Chromium öffnen. US
 | Gerät → App | `D,t_s,uv_AU,leitf_uS,druck_bar,temp_C,fluss_ml_min,B_%,LOAD|INJECT` |
 | App → Gerät | `FLOW 0.50`, `PCTB 35.0`, `VALVE INJECT`, `VALVE LOAD`, `ZERO`, `LED 1`, `RATE 10`, `STOP` |
 | Stufe-1-Sketch | `zeit_s,I_V,R_V,verhaeltnis,extinktion_AU,temp_C,uebersteuert` wird automatisch erkannt (Befehle `n`, `d`) |
+
+## Tests und Anforderungen
+- `docs/ANFORDERUNGEN.md`: Anforderungen mit Nachweis und Status
+- `tests/chromalog.test.js`: automatische Tests der Rechenkerne, Start mit `npm test`; laufen bei jedem Push über GitHub Actions
 
 ## Aufbau
 - `js/device.js` Anschlüsse, Protokoll, Simulator

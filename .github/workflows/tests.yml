@@ -1,0 +1,20 @@
+name: Tests
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Automatische Tests
+        run: node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination=testbericht.tap tests/*.test.js
+      - name: Testbericht aufbewahren
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testbericht-${{ github.sha }}
+          path: testbericht.tap
