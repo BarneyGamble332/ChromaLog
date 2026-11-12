@@ -2,7 +2,7 @@
 
 Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft als Web-App im Browser (Linux-PC, Android) und später als Android-App.
 
-## Stand Version 0.4
+## Stand Version 0.5
 - Live-Chromatogramm in Echtzeit: UV 275 nm, dazu Druck, Leitfähigkeit, Temperatur und Gradient
 - Gerätesteuerung: Lauf mit Equilibrieren, Autozero, Injektion, Gradient-Tabelle, Ventil-Ereignissen und Druckabschaltung; Handsteuerung
 - Anschlüsse: Simulator (ohne Hardware), USB seriell, Bluetooth Low Energy (Nordic UART oder HM-10); WLAN ist vorbereitet
@@ -27,8 +27,11 @@ https://barneygamble332.github.io/ChromaLog/ in Chrome oder Chromium öffnen. US
 | --- | --- |
 | Gerät → App | `D,t_s,uv_AU,leitf_uS,druck_bar,temp_C,fluss_ml_min,B_%,LOAD|INJECT` |
 | App → Gerät | `FLOW 0.50`, `PCTB 35.0`, `VALVE INJECT`, `VALVE LOAD`, `ZERO`, `LED 1`, `RATE 10`, `STOP` |
-| Steuerung | `CFG kurzname ART pins [max]`, `SET kurzname wert`; Gerät meldet `V,kurzname,wert` |
+| Steuerung | `CLEAR`, `CFG kurzname ART pins [max] [schritte_je_ml]`, `SET kurzname wert`; Gerät meldet `READY …` und `V,kurzname,wert` |
 | Stufe-1-Sketch | `zeit_s,I_V,R_V,verhaeltnis,extinktion_AU,temp_C,uebersteuert` wird automatisch erkannt (Befehle `n`, `d`) |
+
+## Arduino
+`firmware/chromalog_uno` enthält den allgemeinen Sketch für den Arduino Uno (UV-Detektor aus Stufe 1 plus Baukasten für die Steuerung). Anleitung, Pin-Regeln und Sicherheitshinweise: `firmware/README.md`. Der Sketch ist übersetzt, aber noch nicht am Gerät getestet.
 
 ## Tests und Anforderungen
 - `docs/ANFORDERUNGEN.md`: Anforderungen mit Nachweis und Status

@@ -1,6 +1,6 @@
 # ChromaLog – Anforderungen und Nachweise
 
-Stand: 12.11.2026 · gilt für Version 0.4
+Stand: 12.11.2026 · gilt für Version 0.5
 
 Dieses Dokument hält fest, was die Software können muss, und womit jede Anforderung nachgewiesen ist. Es ist die Grundlage für eine spätere Validierung. Bei jeder Änderung an der Software wird es mitgepflegt.
 
@@ -72,9 +72,12 @@ Die Referenzdaten der automatischen Tests sind berechnete Chromatogramme aus Gau
 | A-58 | Bauteile lassen sich verschieben, verbinden, ändern und löschen; der Aufbau bleibt nach dem Neuladen erhalten. | Browser-Test 12.11.2026 (Simulator) | erfüllt im Simulator |
 | A-59 | „Alles stopp“ beendet einen laufenden Ablauf und stoppt die Pumpen. | Browser-Test 12.11.2026 (Simulator) | erfüllt im Simulator |
 | A-60 | Während eines Methodenlaufs ist die Steuerung gesperrt; „Alles stopp“ bricht auch den Methodenlauf ab. | Offen (nur Code-Durchsicht) | offen |
-| A-61 | Allgemeiner Arduino-Sketch, der `CFG` und `SET` versteht und Messwerte als `V`-Zeilen meldet. | – | nicht umgesetzt |
-| A-62 | Heizung: Regelung und Übertemperatur-Abschaltung laufen im Gerät, auch ohne Verbindung zur App. | – | nicht umgesetzt (gehört zu A-61) |
+| A-61 | Allgemeiner Sketch für den Arduino Uno (`firmware/chromalog_uno`), der `CLEAR`, `CFG` und `SET` versteht und Messwerte als `V`-Zeilen meldet. | Übersetzt bei jedem Push fehlerfrei (Workflow „Tests“, Schritt „firmware“). Funktion am Gerät offen. | umgesetzt, am Gerät ungetestet |
+| A-62 | Heizung: Regelung und Übertemperatur-Abschaltung laufen im Gerät, auch ohne Verbindung zur App. | Nur Code-Durchsicht | umgesetzt, am Gerät ungetestet |
 | A-63 | Ein Endschalter oder Lecksensor kann „Alles stopp“ auslösen. | – | nicht umgesetzt |
+| A-64 | Anzeigen rechnen den Rohwert um (Faktor und Versatz), z. B. Volt in bar; Abläufe können auf den umgerechneten Wert warten. | Automatisch (im Test A-54) | erfüllt |
+| A-65 | Nach dem Neustart des Arduino (`READY`) meldet die App alle Bauteile des Aufbaus neu an. | Offen (keine Hardware) | offen |
+| A-66 | Endschalter an den Spritzenpumpen und Abschaltung bei Verbindungsabriss. | – | nicht umgesetzt |
 
 ## Bekannte Grenzen
 - Die Tests prüfen die Rechenkerne (`js/analysis.js`, `js/device.js`, `js/control.js`). Die Oberfläche und der Ablauf im Browser sind noch nicht automatisch abgedeckt.
@@ -87,3 +90,4 @@ Die Referenzdaten der automatischen Tests sind berechnete Chromatogramme aus Gau
 | --- | --- | --- |
 | 12.11.2026 | 0.3 | Erste Fassung: 31 Anforderungen, davon 17 mit automatischem Test. |
 | 12.11.2026 | 0.4 | Abschnitt 5 „Steuerung“ ergänzt: 14 Anforderungen, davon 8 mit automatischem Test. Insgesamt 45 Anforderungen, 25 automatische Tests. |
+| 12.11.2026 | 0.5 | Uno-Sketch ergänzt (A-61, A-62 umgesetzt, ungetestet), A-64 bis A-66 neu. Insgesamt 48 Anforderungen. |

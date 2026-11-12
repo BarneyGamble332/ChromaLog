@@ -11,7 +11,7 @@ function ctlMake(lib, x, y, over) {
   return Object.assign(p, { id: uid(), x, y }, over || {});
 }
 function ctlDefaults() {
-  const a = { flow: ctlMake('flow', 40, 40, { name: 'Pumpe (Fluss gesamt)' }), b: ctlMake('pctb', 40, 260, { name: 'Anteil B' }), press: ctlMake('press', 320, 40), inj: ctlMake('inj', 600, 40, { name: 'Injektionsventil' }),
+  const a = { flow: ctlMake('flow', 40, 40, { name: 'Pumpe (Fluss gesamt)' }), b: ctlMake('pctb', 40, 260, { name: 'Anteil B' }), press: ctlMake('press', 320, 40, { name: 'Drucksensor', source: 'D:press', scale: null, offset: null, fw: null, pin: '' }), inj: ctlMake('inj', 600, 40, { name: 'Injektionsventil' }),
     heat: ctlMake('heater', 880, 40, { name: 'Säulenheizung' }), uv: ctlMake('uv', 1160, 40, { name: 'UV-Detektor' }), led: ctlMake('uvled', 1160, 230), zero: ctlMake('zero', 1160, 400),
     temp: ctlMake('ds18', 600, 260), syr: ctlMake('syringe', 320, 260, { name: 'Spritzenpumpe A (Beispiel)', key: 'pumpea' }) };
   const s1 = { led: ctlMake('uvled', 40, 40), zero: ctlMake('zero', 40, 220), uv: ctlMake('uv', 320, 40, { name: 'Extinktion' }), temp: ctlMake('ds18', 320, 220) };
@@ -23,7 +23,7 @@ function ctlDefaults() {
   ];
 }
 function ctlSave() { Store.put('kv', { id: 'control', cur: CTL.cur, layouts: CTL.layouts }); }
-function ctlConfigure() { if (S.dev && CTL.layouts.length) configCommands(ctlL().parts).forEach(c => cmd(c)); }
+function ctlConfigure(clear) { if (!S.dev || !CTL.layouts.length) return; if (clear) cmd('CLEAR'); configCommands(ctlL().parts).forEach(c => cmd(c)); }
 function ctlValue(key, v) { CTL.meas[key] = v; }
 function ctlLogLine(text) {
   CTL.log.push(new Date().toLocaleTimeString(LANG === 'de' ? 'de-DE' : 'en-GB') + '  ' + text);
@@ -91,7 +91,7 @@ function ctlLive() {
   document.querySelectorAll('#flowInner .node').forEach(n => {
     const p = ctlById(n.dataset.id); if (!p) return; const live = n.querySelector('[data-live]'); if (!live) return;
     if (p.kind === 'display') {
-      const val = readSource(p.source, S.last, CTL.meas); live.textContent = fmt(val, p.dec == null ? 2 : p.dec);
+      const val = partReading(p, S.last, CTL.meas); live.textContent = fmt(val, p.dec == null ? 2 : p.dec);
       const h = CTL.hist[p.id] || (CTL.hist[p.id] = []);
       if (tickHist && val != null) { h.push(val); if (h.length > 60) h.shift(); }
       const sp = n.querySelector('[data-spark]');
@@ -129,7 +129,8 @@ function ctlOpenLib() {
   d.showModal();
 }
 const CTL_FIELDS = [
-  { k: 'name', l: 'm_name' }, { k: 'key', l: 'ctl_key' }, { k: 'kind', l: 'ctl_kind', sel: true }, { k: 'pin', l: 'ctl_pin' },
+  { k: 'name', l: 'm_name' }, { k: 'key', l: 'ctl_key' }, { k: 'kind', l: 'ctl_kind', sel: true }, { k: 'pin', l: 'ctl_pin' }, { k: 'fw', l: 'ctl_fw', fwsel: true },
+  { k: 'spm', l: 'ctl_spm', num: true, kinds: ['syringe', 'slider'] }, { k: 'scale', l: 'ctl_scale', num: true, kinds: ['display'] }, { k: 'offset', l: 'ctl_offset', num: true, kinds: ['display'] },
   { k: 'min', l: 'ctl_min', num: true, kinds: ['slider', 'heater'] }, { k: 'max', l: 'ctl_max', num: true, kinds: ['slider', 'heater'] }, { k: 'max', l: 'ctl_max_syr', num: true, kinds: ['syringe'] },
   { k: 'step', l: 'ctl_step', num: true, kinds: ['slider', 'syringe', 'heater'] }, { k: 'unit', l: 'ctl_unit', kinds: ['slider', 'display'] }, { k: 'fill', l: 'ctl_fillrate', num: true, kinds: ['syringe'] },
   { k: 'positions', l: 'ctl_positions', kinds: ['positions'], wide: true }, { k: 'off', l: 'ctl_off', kinds: ['switch'] }, { k: 'on', l: 'ctl_on', kinds: ['switch'] },
@@ -138,7 +139,7 @@ const CTL_FIELDS = [
 ];
 function ctlSources(L) {
   const base = [['D:uv', t('ch_uv') + ' [mAU]'], ['D:press', t('ch_press') + ' [bar]'], ['D:temp', t('ch_temp') + ' [°C]'], ['D:cond', t('ch_cond') + ' [µS/cm]'], ['D:flow', t('tl_flow') + ' [ml/min]'], ['D:b', t('tl_b') + ' [%]']];
-  L.parts.forEach(p => { if (p.kind === 'syringe' || p.kind === 'heater') base.push(['V:' + p.key, p.name]); else if (p.kind === 'display' && p.source && p.source.startsWith('V:') && !base.some(b => b[0] === p.source)) base.push([p.source, p.name]); });
+  L.parts.forEach(p => { if (p.kind === 'syringe' || p.kind === 'heater') base.push(['V:' + p.key, p.name]); else if (p.kind === 'display' && p.source && p.source.startsWith('V:')) base.push(['P:' + p.key, p.name + (p.unit ? ' [' + p.unit + ']' : '')]); });
   return base;
 }
 function ctlOpenPart(p, isNew) {
@@ -148,7 +149,8 @@ function ctlOpenPart(p, isNew) {
       const id = 'pf_' + f.k, val = w[f.k] == null ? '' : w[f.k];
       let inp;
       if (f.sel) inp = '<select id="' + id + '" data-f="kind">' + CTL_KINDS.map(k => '<option value="' + k + '"' + (k === w.kind ? ' selected' : '') + '>' + t('k_' + k) + '</option>').join('') + '</select>';
-      else if (f.src) { const own = 'V:' + w.key, list = ctlSources(L); if (!list.some(s => s[0] === own)) list.push([own, own]);
+      else if (f.fwsel) inp = '<select id="' + id + '" data-f="fw">' + CTL_FW_KINDS.map(k => '<option value="' + k + '"' + (k === (w.fw || CTL_FW[w.kind]) ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>';
+      else if (f.src) { const own = 'V:' + w.key, list = ctlSources(L).filter(s => !s[0].startsWith('P:')); if (!list.some(s => s[0] === own)) list.push([own, own]);
         inp = '<select id="' + id + '" data-f="source">' + list.map(s => '<option value="' + esc(s[0]) + '"' + (s[0] === val ? ' selected' : '') + '>' + esc(s[1]) + '</option>').join('') + '</select>'; }
       else inp = '<input id="' + id + '" data-f="' + f.k + '" type="' + (f.num ? 'number' : 'text') + '"' + (f.num ? ' step="any"' : '') + ' value="' + esc(val) + '">';
       return '<label' + (f.wide ? ' class="wide"' : '') + '><span>' + t(f.l) + '</span>' + inp + '</label>';
@@ -156,7 +158,7 @@ function ctlOpenPart(p, isNew) {
     d.innerHTML = '<h3>' + t('ctl_part') + '</h3><div class="form">' + rows + '</div><div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-x="cancel">' + t('cancel') + '</button><button type="button" class="btn primary" data-x="ok">' + t('ok') + '</button></div>';
   };
   const read = () => d.querySelectorAll('[data-f]').forEach(e => { w[e.dataset.f] = e.type === 'number' ? (e.value === '' ? null : +e.value) : e.value; });
-  d.onchange = e => { if (e.target.dataset.f === 'kind') { read(); if (w.kind === 'slider' || w.kind === 'heater') { if (w.min == null) w.min = 0; if (w.max == null) w.max = 100; } if (w.kind === 'syringe' && w.max == null) w.max = 60; if (w.kind === 'display' && !w.source) w.source = 'V:' + w.key; build(); } };
+  d.onchange = e => { if (e.target.dataset.f === 'kind') { read(); if (w.kind === 'slider' || w.kind === 'heater') { if (w.min == null) w.min = 0; if (w.max == null) w.max = 100; } if (w.kind === 'syringe' && w.max == null) w.max = 60; if (w.kind === 'display' && !w.source) w.source = 'V:' + w.key; w.fw = CTL_FW[w.kind]; build(); } };
   d.onclick = e => {
     const b = e.target.closest('button[data-x]'); if (!b) return;
     if (b.dataset.x === 'ok') {
@@ -165,8 +167,8 @@ function ctlOpenPart(p, isNew) {
       if (w.kind === 'positions' && !w.positions.length) w.positions = [{ name: '1', value: '1' }, { name: '2', value: '2' }];
       if ((w.kind === 'slider' || w.kind === 'heater') && !(w.max > w.min)) w.max = (+w.min || 0) + 1;
       Object.keys(p).forEach(k => delete p[k]); Object.assign(p, w);
-      if (oldKey !== p.key) { (L.procs || []).forEach(pr => pr.steps.forEach(st => { if (st.key === oldKey) st.key = p.key; if (st.src === 'V:' + oldKey) st.src = 'V:' + p.key; })); delete CTL.values[oldKey]; }
-      ctlSave(); ctlConfigure(); logAudit(isNew ? 'component added' : 'component changed', ctlL().name + ' · ' + p.name);
+      if (oldKey !== p.key) { (L.procs || []).forEach(pr => pr.steps.forEach(st => { if (st.key === oldKey) st.key = p.key; if (st.src === 'V:' + oldKey) st.src = 'V:' + p.key; if (st.src === 'P:' + oldKey) st.src = 'P:' + p.key; })); delete CTL.values[oldKey]; }
+      ctlSave(); ctlConfigure(true); logAudit(isNew ? 'component added' : 'component changed', ctlL().name + ' · ' + p.name);
     } else if (isNew) { L.parts = L.parts.filter(q => q.id !== p.id); ctlSave(); }
     d.close(); renderCtl();
   };
@@ -216,7 +218,7 @@ function ctlTick() {
   for (let guard = 0; guard < 50; guard++) {
     const st = pr.steps[r.idx]; if (!st) { ctlProcEnd('done'); return; }
     if (!r.entered) { r.entered = true; r.t0 = now; if (st.type === 'set') { const p = ctlByKey(st.key); if (p && !ctlSend(p, p.kind === 'button' ? '' : st.value)) { ctlProcEnd('stopped'); return; } } }
-    const state = stepState(st, (now - r.t0) / 1000, st.type === 'until' ? readSource(st.src, S.last, CTL.meas) : null);
+    const state = stepState(st, (now - r.t0) / 1000, st.type === 'until' ? readSource(st.src, S.last, CTL.meas, L.parts) : null);
     if (state === 'done') { r.idx++; r.entered = false; moved = true; continue; }
     if (state === 'timeout') { ctlProcEnd('timeout'); return; }
     break;
@@ -242,7 +244,7 @@ function ctlBind() {
     const act = b.dataset.act, valIn = node.querySelector('[data-role="value"]');
     if (act === 'link') { CTL.linkFrom = CTL.linkFrom === p.id ? null : p.id; renderCtl(); }
     else if (act === 'edit') ctlOpenPart(p, false);
-    else if (act === 'del') confirmDlg(t('ctl_del_part')).then(ok => { if (!ok) return; L.parts = L.parts.filter(q => q.id !== p.id); L.links = L.links.filter(l => l.from !== p.id && l.to !== p.id); ctlSave(); logAudit('component deleted', L.name + ' · ' + p.name); renderCtl(); });
+    else if (act === 'del') confirmDlg(t('ctl_del_part')).then(ok => { if (!ok) return; L.parts = L.parts.filter(q => q.id !== p.id); L.links = L.links.filter(l => l.from !== p.id && l.to !== p.id); ctlSave(); ctlConfigure(true); logAudit('component deleted', L.name + ' · ' + p.name); renderCtl(); });
     else if (act === 'set') { if (ctlSend(p, b.dataset.v)) ctlRenderNodes(); }
     else if (act === 'deliver') { p.value = Math.abs(+valIn.value || 0); ctlSave(); if (ctlSend(p, p.value)) ctlRenderNodes(); }
     else if (act === 'fill') { if (ctlSend(p, -(+p.fill || 5))) ctlRenderNodes(); }
@@ -263,7 +265,7 @@ function ctlBind() {
     const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); ctlSave(); ctlSize(); };
     h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
   });
-  $('#ctlSel').onchange = e => { if (CTL.run) ctlProcEnd('stopped'); CTL.cur = e.target.value; CTL.values = {}; CTL.hist = {}; CTL.linkFrom = null; CTL.procId = null; ctlSave(); ctlConfigure(); renderCtl(); };
+  $('#ctlSel').onchange = e => { if (CTL.run) ctlProcEnd('stopped'); CTL.cur = e.target.value; CTL.values = {}; CTL.hist = {}; CTL.linkFrom = null; CTL.procId = null; ctlSave(); ctlConfigure(true); renderCtl(); };
   $('#ctlEdit').onclick = () => { CTL.edit = !CTL.edit; CTL.linkFrom = null; if (!CTL.edit) ctlConfigure(); renderCtl(); };
   $('#ctlAdd').onclick = ctlOpenLib; $('#ctlStopAll').onclick = ctlStopAll;
   $('#ctlNew').onclick = () => { const l = { id: uid(), name: t('ctl_newlayout') + ' ' + (CTL.layouts.length + 1), parts: [], links: [], procs: [] }; CTL.layouts.push(l); CTL.cur = l.id; CTL.edit = true; CTL.values = {}; CTL.procId = null; ctlSave(); renderCtl(); };
@@ -273,7 +275,7 @@ function ctlBind() {
   $('#ctlImport').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     try { const l = JSON.parse(await f.text()); if (!l || !Array.isArray(l.parts)) throw new Error('format'); l.id = uid(); l.name = l.name || f.name; l.links = l.links || []; l.procs = l.procs || [];
-      CTL.layouts.push(l); CTL.cur = l.id; CTL.procId = null; ctlSave(); ctlConfigure(); logAudit('setup imported', l.name); renderCtl(); } catch (err) { toast(t('t_badfile'), true); }
+      CTL.layouts.push(l); CTL.cur = l.id; CTL.procId = null; ctlSave(); ctlConfigure(true); logAudit('setup imported', l.name); renderCtl(); } catch (err) { toast(t('t_badfile'), true); }
   };
   const pc = $('#procCard');
   pc.addEventListener('change', e => {

@@ -18,3 +18,14 @@ jobs:
         with:
           name: testbericht-${{ github.sha }}
           path: testbericht.tap
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compiler und Bibliotheken holen
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq gcc-avr avr-libc
+          mkdir -p /tmp/ard && cd /tmp/ard
+          for r in arduino/ArduinoCore-avr arduino-libraries/Servo PaulStoffregen/OneWire milesburton/Arduino-Temperature-Control-Library adafruit/Adafruit_ADS1X15 adafruit/Adafruit_BusIO; do git clone -q --depth 1 https://github.com/$r; done
+      - name: Uno-Sketch übersetzen
+        run: tools/build_firmware.sh /tmp/ard

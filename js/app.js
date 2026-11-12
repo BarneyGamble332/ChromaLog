@@ -4,7 +4,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const CH = ['uv', 'cond', 'press', 'temp', 'flow', 'b'];
-const APP_VERSION = '0.4';
+const APP_VERSION = '0.5';
 
 const DEFAULT_METHODS = [
   { id: 'm-screening', name: 'Abwasser-Screening (Gradient)', column: 'C18, 100 × 4,6 mm', solventA: 'Wasser + 0,1 % Ameisensäure', solventB: 'Acetonitril',
@@ -64,7 +64,7 @@ async function connectDevice(kind) {
   S.dev = dev; S.stage1 = false; S.last = null; CTL.fbDone = false; $('#connHint').textContent = '';
   CH.concat('t').forEach(k => { if (S.mon[k]) S.mon[k].length = 0; });
   if (kind === 'sim') dev.speed = +$('#selSpeed').value;
-  cmd('RATE ' + curMethod().rate); ctlConfigure();
+  cmd('RATE ' + curMethod().rate); ctlConfigure(true);
   logAudit('connect', kind + (dev.name ? ' ' + dev.name : ''));
   S.dirty = true;
 }
@@ -72,7 +72,7 @@ async function disconnectDevice() { if (S.dev) { const d = S.dev; S.dev = null; 
 
 function onLine(line) {
   const s = parseLine(line);
-  if (!s) { if (line.trim()) log(line); return; }
+  if (!s) { if (line.trim()) log(line); if (line.startsWith('READY')) { cmd('RATE ' + curMethod().rate); ctlConfigure(true); } return; }   /* Arduino ist nach dem Neustart bereit */
   if (S.tab === 'system') log(line);
   if (s.kind === 'val') { ctlValue(s.key, s.value); S.dirty = true; return; }
   if (s.kind === 'stage1' && !S.stage1) { S.stage1 = true; toast(t('t_stage1')); }

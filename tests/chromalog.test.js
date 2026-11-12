@@ -155,15 +155,17 @@ test('A-30 Gesamtkette im Simulator: Standards → Kalibrierung → Probe (±5 %
 
 /* ---------- Steuerung ---------- */
 const PARTS = [
-  { key: 'pumpea', kind: 'syringe', pin: '2/3/4', max: 60, safe: '0' },
-  { key: 'heizung', kind: 'heater', pin: '6 / 2', safe: '0' },
-  { key: 'servo3', kind: 'slider', pin: '11', safe: '' },
+  { key: 'pumpea', kind: 'syringe', pin: '4/7/8', max: 60, spm: 1000, safe: '0' },
+  { key: 'schlauch', kind: 'slider', fw: 'STEPPER', pin: '9/10', spm: 250, safe: '0' },
+  { key: 'heizung', kind: 'heater', pin: '8 / 12', safe: '0' },
+  { key: 'servo3', kind: 'slider', fw: 'SERVO', pin: '11', safe: '' },
   { key: 'fluss', kind: 'slider', cmd: 'FLOW {v}', safe: '0' },
   { key: 'inj', kind: 'positions', cmd: 'VALVE {v}', safe: 'LOAD' },
   { key: 'zero', kind: 'button', cmd: 'ZERO', safe: '0' },
   { key: 'taster', kind: 'button' },
   { key: 'druck', kind: 'display', source: 'D:press', pin: 'A2' },
-  { key: 'adc', kind: 'display', source: 'V:adc', pin: 'A0' }
+  { key: 'adc', kind: 'display', source: 'V:adc', pin: 'A0' },
+  { key: 'p2', kind: 'display', source: 'V:p2', pin: 'A2', scale: 3, offset: -1.5 }
 ];
 const part = k => PARTS.find(p => p.key === k);
 
@@ -177,11 +179,11 @@ test('A-50 Steuerung: Befehl eines Bauteils (Standard, eigener Befehl, Taster)',
 });
 
 test('A-51 Steuerung: Anmeldung der Bauteile beim Gerät', () => {
-  assert.deepEqual(C.configCommands(PARTS), ['CFG pumpea SYRINGE 2/3/4 60', 'CFG heizung HEATER 6/2', 'CFG servo3 VALUE 11', 'CFG taster BUTTON -', 'CFG adc SENSOR A0']);
+  assert.deepEqual(C.configCommands(PARTS), ['CFG pumpea SYRINGE 4/7/8 60 1000', 'CFG schlauch STEPPER 9/10 0 250', 'CFG heizung HEATER 8/12', 'CFG servo3 SERVO 11', 'CFG taster BUTTON -', 'CFG adc SENSOR A0', 'CFG p2 SENSOR A2']);
 });
 
 test('A-52 Steuerung: „Alles stopp“ sendet die sicheren Werte', () => {
-  assert.deepEqual(C.safeCommands(PARTS).map(s => s.cmd), ['SET pumpea 0', 'SET heizung 0', 'FLOW 0', 'VALVE LOAD']);
+  assert.deepEqual(C.safeCommands(PARTS).map(s => s.cmd), ['SET pumpea 0', 'SET schlauch 0', 'SET heizung 0', 'FLOW 0', 'VALVE LOAD']);
 });
 
 test('A-53 Ablauf: Schritte Stellen, Warten, Warten bis, Zeitüberschreitung', () => {
@@ -198,6 +200,9 @@ test('A-54 Steuerung: Messwert-Quellen', () => {
   assert.equal(C.readSource('D:press', last, meas), 6.2); assert.equal(C.readSource('V:pumpea', last, meas), 41.5);
   assert.equal(C.readSource('D:temp', last, meas), null); assert.equal(C.readSource('V:fehlt', last, meas), null);
   assert.equal(C.readSource('D:press', null, null), null); assert.equal(C.readSource('', last, meas), null);
+  near(C.readSource('P:p2', last, { p2: 2.5 }, PARTS), 6, 1e-9, 'Anzeige mit Umrechnung: 2,5 V → 6 bar');
+  assert.equal(C.readSource('P:p2', last, {}, PARTS), null); assert.equal(C.readSource('P:fehlt', last, meas, PARTS), null);
+  assert.equal(C.partReading({ source: 'D:press' }, last, meas), 6.2, 'ohne Umrechnung unverändert');
 });
 
 test('A-55 Steuerung: eindeutige Kurznamen und Stellungen', () => {
@@ -218,7 +223,8 @@ test('A-57 Simulator: Spritzenpumpe, Heizung und Messwertzeilen', () => {
   const v0 = sim.gen.pumpea.vol;
   sim.send('SET pumpea 6'); for (let i = 0; i < 600; i++) sim.step(0.1);                       /* 60 s mit 6 ml/min */
   near(v0 - sim.gen.pumpea.vol, 6, 1e-6, 'gefördertes Volumen');
-  sim.send('SET pumpea 600'); for (let i = 0; i < 600; i++) sim.step(0.1);
+  sim.send('CLEAR'); assert.deepEqual(sim.gen, {}, 'CLEAR meldet alles ab'); C.configCommands(PARTS).forEach(c => sim.send(c));
+  sim.send('SET pumpea 600'); for (let i = 0; i < 6000; i++) sim.step(0.1);
   assert.equal(sim.gen.pumpea.vol, 0); assert.equal(sim.gen.pumpea.v, 0, 'leere Spritze hält an');
   sim.send('SET heizung 40'); for (let i = 0; i < 3000; i++) sim.step(0.1);
   near(sim.gen.heizung.temp, 40, 0.01, 'Ist-Temperatur');

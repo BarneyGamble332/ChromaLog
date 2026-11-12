@@ -81,6 +81,7 @@ class SimDevice {
     else if (c === 'LED') this.led = p[1] !== '0';
     else if (c === 'ZERO') this.zero = this.uvF;
     else if (c === 'STOP') this.flowSet = 0;
+    else if (c === 'CLEAR') this.gen = {};
     else if (c === 'CFG' && p[1]) { const old = this.gen[p[1]] || {}; this.gen[p[1]] = { kind: (p[2] || '').toUpperCase(), v: old.v || 0, max: parseFloat(p[4]) || 60, vol: old.vol != null ? old.vol : (parseFloat(p[4]) || 60) * 0.7, temp: old.temp || 22 }; }
     else if (c === 'SET' && p[1]) { const g = this.gen[p[1]] || (this.gen[p[1]] = { kind: 'VALUE', v: 0, max: 60, vol: 42, temp: 22 }); const sv = parseFloat(p[2]); g.v = isFinite(sv) ? sv : 0; }
     else if (c === 'VALVE') {
