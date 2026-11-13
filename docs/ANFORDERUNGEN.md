@@ -1,6 +1,6 @@
 # ChromaLog – Anforderungen und Nachweise
 
-Stand: 12.11.2026 · gilt für Version 0.6
+Stand: 12.11.2026 · gilt für Version 0.7
 
 Dieses Dokument hält fest, was die Software können muss, und womit jede Anforderung nachgewiesen ist. Es ist die Grundlage für eine spätere Validierung. Bei jeder Änderung an der Software wird es mitgepflegt.
 
@@ -22,8 +22,8 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 | A-03 | Der Stufe-1-Sketch (7 Spalten) wird erkannt; Kopfzeilen und Text werden nicht als Messwert gewertet. | Automatisch | erfüllt |
 | A-04 | Ein Lauf läuft in der Reihenfolge Equilibrieren, Autozero, Injektion, Gradient, Ende ab und wird gespeichert. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
 | A-05 | Überschreitet der Druck die Grenze der Methode, stoppt die Software die Pumpen und bricht ab – im Lauf und schon beim Equilibrieren. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
-| A-06 | Verbindung über USB seriell. | Offen (keine Hardware) | offen |
-| A-07 | Verbindung über Bluetooth Low Energy. | Offen (keine Hardware) | offen |
+| A-06 | Verbindung über USB seriell: im Browser (Web Serial), im Linux-Programm und in der Android-App (Plugin). | Linux: Selbsttest beim Bau (Anschluss verfügbar). Android: automatisch im Browser mit nachgebildeter Plugin-Brücke. Am Gerät offen. | am Gerät ungetestet |
+| A-07 | Verbindung über Bluetooth Low Energy: im Browser, im Linux-Programm und in der Android-App (Plugin); Nordic UART und HM-10. | Android: automatisch im Browser mit nachgebildeter Plugin-Brücke. Am Gerät offen. | am Gerät ungetestet |
 | A-08 | Eine Sequenz arbeitet die Probenliste der Reihe nach ab und wartet auf Wunsch vor jeder Probe auf Bestätigung. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
 
 ## 2 Auswertung
@@ -84,6 +84,14 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 | A-67 | Ein Methodenlauf fährt die Bauteile mit Rolle: Pumpe A und B teilen den Fluss nach dem Anteil B, das Injektionsventil schaltet zwischen erster und zweiter Stellung; ohne Rollen gehen die Befehle unverändert ans Gerät. | Automatisch (Rechenkern und Browser) | erfüllt im Simulator |
 | A-68 | Endschalter und Lecksensor werden nach ihrem Ziel angemeldet; Ereigniszeilen des Geräts (`E,STOP`, `E,LIMIT`) werden gelesen. | Automatisch | erfüllt |
 
+## 6 Linux-Programm und Android-App
+| Nr. | Anforderung | Nachweis | Status |
+| --- | --- | --- | --- |
+| A-69 | Eintreffender Text wird auch aus Bruchstücken zu Zeilen zusammengesetzt; Bluetooth-Daten werden richtig in Hex gewandelt. | Automatisch | erfüllt |
+| A-70 | Linux-Programm (AppImage, deb): startet, zeigt die App, der Simulator läuft, Daten werden dauerhaft gespeichert, serieller Anschluss und Bluetooth stehen zur Auswahl. | Selbsttest bei jedem Bau (Workflow „Pakete“) | erfüllt; Geräteauswahl von Hand ungetestet |
+| A-71 | Android-App: lässt sich bauen und installieren; Bildschirm bleibt an; Dateien werden in „Dokumente/ChromaLog“ gespeichert, sonst über „Teilen“. | Bau bei jedem Push; Verhalten automatisch im Browser mit nachgebildeter Plugin-Brücke (Tests A-06, A-07) | gebaut, auf keinem Handy getestet |
+| A-72 | Eine neue APK lässt sich über die alte installieren, die Daten bleiben erhalten (gleiche Signatur, steigender Versionscode). | – | offen |
+
 ## Bekannte Grenzen
 - Die Browser-Tests decken die wichtigsten Abläufe ab, nicht jede Schaltfläche. Die Bedienung am Handy ist nicht getestet.
 - Referenzdaten sind berechnet. Ein Vergleich mit einer etablierten Chromatographie-Software an echten Messdaten steht aus.
@@ -97,3 +105,4 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 | 12.11.2026 | 0.4 | Abschnitt 5 „Steuerung“ ergänzt: 14 Anforderungen, davon 8 mit automatischem Test. Insgesamt 45 Anforderungen, 25 automatische Tests. |
 | 12.11.2026 | 0.5 | Uno-Sketch ergänzt (A-61, A-62 umgesetzt, ungetestet), A-64 bis A-66 neu. Insgesamt 48 Anforderungen. |
 | 13.11.2026 | 0.6 | Prüfsummen-Prüfung (A-47), Rollen im Methodenlauf (A-67), Endschalter, Lecksensor und Verbindungsüberwachung im Sketch (A-63, A-66, A-68). Neu: 9 Browser-Tests und 48 Prüfungen der Sketch-Logik am PC; die bisherigen Browser-Prüfungen von Hand sind damit automatisch. Insgesamt 50 Anforderungen. |
+| 13.11.2026 | 0.7 | Linux-Programm und Android-App (A-69 bis A-72); A-06 und A-07 um die neuen Wege erweitert. Insgesamt 54 Anforderungen. |

@@ -173,3 +173,59 @@ test('A-67 Methodenlauf fährt die Bauteile mit Rolle (Pumpe A/B, Injektionsvent
   assert.ok(!c.some(l => l.startsWith('PCTB') || l.startsWith('FLOW')), 'keine unveränderten Methodenbefehle mehr');
   await p.click('#btnAbort'); await done(o);
 });
+
+/* Nachgebildete Capacitor-Brücke: prüft, dass die App die Plugins so anspricht, wie deren Schnittstelle es vorsieht.
+   Das ersetzt keinen Test auf einem echten Handy. */
+const FAKE_CAPACITOR = `window.fake = { calls: [], read: null, notify: null, files: [] };
+window.Capacitor = { isNativePlatform: () => true,
+  nativePromise: (plugin, method, o) => { fake.calls.push(plugin + '.' + method + ' ' + JSON.stringify(o));
+    if (method === 'requestSerialPermissions') return fake.noDevice ? Promise.reject('NO_DEVICE_ERROR') : Promise.resolve({ granted: true });
+    if (method === 'requestDevice') return Promise.resolve({ deviceId: 'AA:BB', name: 'HMSoft' });
+    if (method === 'getServices') return Promise.resolve({ services: [{ uuid: '0000FFE0-0000-1000-8000-00805F9B34FB' }] });
+    if (method === 'writeFile') { if (o.directory === 'DOCUMENTS' && fake.noDocuments) return Promise.reject('denied'); fake.files.push(o); return Promise.resolve({ uri: 'file:///cache/' + o.path }); }
+    return Promise.resolve({}); },
+  nativeCallback: (plugin, method, o, cb) => { fake.calls.push(plugin + '.' + method + ' ' + JSON.stringify(o));
+    if (method === 'registerReadCallback') fake.read = cb; if (method === 'addListener' && o.eventName.startsWith('notification|')) fake.notify = cb; } };`;
+async function openNative() {
+  const ctx = await browser.newContext({ viewport: { width: 420, height: 900 }, locale: 'de-DE' }); await ctx.addInitScript(FAKE_CAPACITOR);
+  const page = await ctx.newPage(), errors = []; page.on('pageerror', e => errors.push(String(e)));
+  await page.goto(URL + '#system'); await page.waitForFunction("typeof S !== 'undefined' && S.dev && S.last");
+  return { ctx, page, errors };
+}
+
+test('A-06 Android-App: USB über das Serial-Plugin (nachgebildete Brücke)', async () => {
+  const o = await openNative(), p = o.page;
+  assert.ok(await p.evaluate("fake.calls.some(c => c.startsWith('KeepAwake.keepAwake'))"), 'Bildschirm bleibt an');
+  await p.selectOption('#selTr', 'usb'); await p.click('#btnConnect'); await p.waitForFunction("S.dev && S.dev.kind === 'usb'");
+  let c = await p.evaluate('fake.calls');
+  assert.ok(c.some(q => q.startsWith('Serial.openConnection') && q.includes('"baudRate":115200') && q.includes('"dtr":true')), 'öffnet mit 115200 Baud und DTR');
+  await p.evaluate("fake.read({ data: 'READY ChromaLog-Uno 0.2\\nD,5.0,0.0125' }); fake.read({ data: '00,,,23.10,,,\\nV,heizung,31.5\\n' })");
+  const r = await p.evaluate("({ uv: S.last.uv, temp: S.last.temp, heat: CTL.meas.heizung })");
+  assert.equal(r.uv, 12.5); assert.equal(r.temp, 23.1); assert.equal(r.heat, 31.5);
+  c = await p.evaluate("fake.calls.filter(q => q.startsWith('Serial.write')).map(q => JSON.parse(q.slice(13)).data)");
+  assert.ok(c.includes('CLEAR\n') && c.includes('CFG heizung HEATER 8/12\n') && c.includes('WATCHDOG 10\n'), 'nach READY: CLEAR, CFG, WATCHDOG mit Zeilenende');
+  await p.evaluate("fake.read(null, 'CONNECTION_ERROR')"); await p.waitForFunction('S.dev === null');
+  await p.evaluate('fake.noDevice = true'); await p.click('#btnConnect'); await p.waitForFunction("document.querySelector('#connHint').textContent.includes('OTG')");
+  assert.deepEqual(o.errors, []); await o.ctx.close();
+});
+
+test('A-07 Android-App: Bluetooth über das BLE-Plugin, Dateien speichern (nachgebildete Brücke)', async () => {
+  const o = await openNative(), p = o.page;
+  await p.selectOption('#selTr', 'ble'); await p.click('#btnConnect'); await p.waitForFunction("S.dev && S.dev.kind === 'ble'");
+  const svc = '0000ffe0-0000-1000-8000-00805f9b34fb', chr = '0000ffe1-0000-1000-8000-00805f9b34fb';
+  let c = await p.evaluate('fake.calls');
+  assert.ok(c.some(q => q.startsWith('BluetoothLe.startNotifications') && q.includes(svc) && q.includes(chr)), 'HM-10-Profil wird an den gemeldeten Diensten erkannt');
+  await p.evaluate("fake.notify({ value: '442c372e302c302e3030352c2c2c32312e30' }); fake.notify({ value: '2c 2c 2c 0a' })");          /* "D,7.0,0.005,,,21.0" + ",,,\n" */
+  assert.equal(await p.evaluate('S.last.uv'), 5); assert.equal(await p.evaluate('S.last.temp'), 21);
+  await p.evaluate("cmd('SET heizung 40 und noch etwas Text')");
+  await p.waitForFunction("fake.calls.filter(q => q.startsWith('BluetoothLe.writeWithoutResponse')).length >= 2");
+  const w = await p.evaluate("fake.calls.filter(q => q.startsWith('BluetoothLe.writeWithoutResponse')).map(q => JSON.parse(q.slice(q.indexOf(' ') + 1)).value)");
+  const text = Buffer.from(w.join(''), 'hex').toString();
+  assert.ok(text.endsWith('SET heizung 40 und noch etwas Text\n'), 'Befehl kommt vollständig an: ' + text); assert.ok(w.every(h => h.length <= 40), 'höchstens 20 Byte je Paket');
+  /* Dateien: erst Dokumente, sonst Teilen */
+  assert.equal(await p.evaluate("saveFile('lauf.csv', 'a,b')"), true);
+  assert.deepEqual(await p.evaluate('fake.files.map(f => f.directory + ":" + f.path)'), ['DOCUMENTS:ChromaLog/lauf.csv']);
+  await p.evaluate('fake.noDocuments = true'); assert.equal(await p.evaluate("saveFile('lauf2.csv', 'a,b')"), true);
+  assert.ok(await p.evaluate("fake.calls.some(q => q.startsWith('Share.share') && q.includes('file:///cache/lauf2.csv'))"), 'Ausweg über „Teilen“');
+  assert.deepEqual(o.errors, []); await o.ctx.close();
+});

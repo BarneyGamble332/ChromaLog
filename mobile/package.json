@@ -1,0 +1,22 @@
+{
+  "name": "chromalog-mobile",
+  "version": "0.7.0",
+  "private": true,
+  "description": "ChromaLog als Android-App (Capacitor)",
+  "scripts": {
+    "web": "../tools/copy_web.sh www"
+  },
+  "dependencies": {
+    "@adeunis/capacitor-serial": "1.0.7",
+    "@capacitor-community/bluetooth-le": "8.3.0",
+    "@capacitor-community/keep-awake": "8.0.1",
+    "@capacitor/android": "8.6.2",
+    "@capacitor/core": "8.6.2",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "4.0.0",
+    "@capacitor/cli": "8.6.2"
+  }
+}

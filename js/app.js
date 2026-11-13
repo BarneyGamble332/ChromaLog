@@ -4,7 +4,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const CH = ['uv', 'cond', 'press', 'temp', 'flow', 'b'];
-const APP_VERSION = '0.6';
+const APP_VERSION = '0.7';
 
 const DEFAULT_METHODS = [
   { id: 'm-screening', name: 'Abwasser-Screening (Gradient)', column: 'C18, 100 × 4,6 mm', solventA: 'Wasser + 0,1 % Ameisensäure', solventB: 'Acetonitril',
@@ -53,16 +53,17 @@ function mcmd(name, value) {
 }
 async function connectDevice(kind) {
   if (S.phase !== 'idle') return;
-  if (kind === 'usb' && !('serial' in navigator)) { $('#connHint').textContent = t('usb_unsupported'); return; }
-  if (kind === 'ble' && !('bluetooth' in navigator)) { $('#connHint').textContent = t('ble_unsupported'); return; }
+  const native = isNativeApp();
+  if (kind === 'usb' && !native && !('serial' in navigator)) { $('#connHint').textContent = t('usb_unsupported'); return; }
+  if (kind === 'ble' && !native && !('bluetooth' in navigator)) { $('#connHint').textContent = t('ble_unsupported'); return; }
   await disconnectDevice();
-  const dev = kind === 'usb' ? new SerialDevice(+$('#selBaud').value) : kind === 'ble' ? new BleDevice() : new SimDevice();
+  const dev = kind === 'usb' ? (native ? new AndroidSerialDevice(+$('#selBaud').value) : new SerialDevice(+$('#selBaud').value)) : kind === 'ble' ? (native ? new AndroidBleDevice() : new BleDevice()) : new SimDevice();
   dev.onLine = onLine;
   dev.onClose = () => { if (S.dev === dev) { S.dev = null; S.last = null; if (S.phase !== 'idle') finishRun(true); toast(t('conn_lost'), true); logAudit('disconnect', 'lost'); S.dirty = true; } };
   try { await dev.connect(); }
   catch (e) {
     if (e && e.name === 'NotFoundError') return;
-    $('#connHint').textContent = (e && e.name === 'SecurityError') ? t(kind === 'ble' ? 'ble_blocked' : 'usb_blocked') : t('conn_failed') + ' ' + (e && e.message || '');
+    $('#connHint').textContent = (e && e.name === 'NoDeviceError') ? t('usb_nodevice') : (e && e.name === 'SecurityError') ? t(kind === 'ble' ? 'ble_blocked' : 'usb_blocked') : t('conn_failed') + ' ' + (e && e.message || '');
     return;
   }
   S.dev = dev; S.stage1 = false; S.last = null; CTL.fbDone = false; $('#connHint').textContent = '';
@@ -668,6 +669,7 @@ async function init() {
   await ctlInit();
   setLang(LANG); route(); requestAnimationFrame(frame);
   if (!Store.persistent) toast(t('t_storage'), true);
+  if (isNativeApp()) { document.documentElement.classList.add('native'); $('#rPrint').hidden = true; capP('KeepAwake', 'keepAwake').catch(() => {}); }   /* Android-App: Bildschirm bleibt an, sonst hält Android die Aufzeichnung an */
   await connectDevice('sim');
 }
 init();

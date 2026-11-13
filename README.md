@@ -2,7 +2,7 @@
 
 Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft als Web-App im Browser (Linux-PC, Android) und später als Android-App.
 
-## Stand Version 0.6
+## Stand Version 0.7
 - Live-Chromatogramm in Echtzeit: UV 275 nm, dazu Druck, Leitfähigkeit, Temperatur und Gradient
 - Gerätesteuerung: Lauf mit Equilibrieren, Autozero, Injektion, Gradient-Tabelle, Ventil-Ereignissen und Druckabschaltung; Handsteuerung
 - Anschlüsse: Simulator (ohne Hardware), USB seriell, Bluetooth Low Energy (Nordic UART oder HM-10); WLAN ist vorbereitet
@@ -20,7 +20,10 @@ Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft a
 - Nachvollziehbarkeit: Prüfsumme wird beim Öffnen und Importieren nachgerechnet; Rohdaten mit SHA-256-Prüfsumme, Protokoll aller Aktionen
 - Deutsch und Englisch
 
-## Starten
+## Installieren
+Drei Wege: im Browser, als Linux-Programm (AppImage, deb) und als Android-App (APK). Fertige Pakete unter [Releases → „Aktueller Stand“](https://github.com/BarneyGamble332/ChromaLog/releases/tag/aktuell), Anleitung in `docs/INSTALLATION.md`.
+
+## Starten im Browser
 https://barneygamble332.github.io/ChromaLog/ in Chrome oder Chromium öffnen. USB und Bluetooth brauchen eine https-Adresse oder localhost.
 
 ## Geräteprotokoll (Textzeilen)
@@ -48,3 +51,5 @@ https://barneygamble332.github.io/ChromaLog/ in Chrome oder Chromium öffnen. US
 - `js/plot.js` Zeichenfläche
 - `js/store.js` Speicher (IndexedDB), Prüfsumme, Export
 - `js/app.js` Ablauf und Oberfläche, `js/i18n.js` Texte
+- `desktop/` Linux-Programm (Electron), `mobile/` Android-App (Capacitor), `firmware/` Arduino-Sketch
+- `.github/workflows/tests.yml` Tests, `.github/workflows/pakete.yml` Bau der Pakete

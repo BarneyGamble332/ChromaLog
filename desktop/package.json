@@ -1,0 +1,43 @@
+{
+  "name": "chromalog-desktop",
+  "productName": "ChromaLog",
+  "version": "0.7.0",
+  "description": "Chromatographie-Software für die Mini-HPLC (Linux-Version)",
+  "homepage": "https://github.com/BarneyGamble332/ChromaLog",
+  "author": {
+    "name": "Bernhard",
+    "email": "noreply@users.noreply.github.com"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "web": "../tools/copy_web.sh app",
+    "start": "npm run web && electron .",
+    "dist": "npm run web && electron-builder --linux AppImage deb --publish never"
+  },
+  "devDependencies": {
+    "electron": "45.3.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "io.github.barneygamble332.chromalog",
+    "productName": "ChromaLog",
+    "files": [
+      "main.js",
+      "app/**/*"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "linux": {
+      "category": "Science",
+      "icon": "build/icon.png",
+      "maintainer": "Bernhard <noreply@users.noreply.github.com>",
+      "artifactName": "ChromaLog-${version}-${arch}.${ext}",
+      "synopsis": "Chromatographie-Software für die Mini-HPLC"
+    },
+    "publish": null
+  }
+}

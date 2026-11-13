@@ -49,6 +49,14 @@ async function saveFile(name, text) {
       if (d) { await d.save({ filename: name, data: text }); return true; }
     }
   } catch (e) { return false; }
+  if (typeof isNativeApp === 'function' && isNativeApp()) {
+    /* Android-App: in „Dokumente/ChromaLog“ ablegen; geht das nicht, über „Teilen“ weitergeben */
+    try { await capP('Filesystem', 'writeFile', { path: 'ChromaLog/' + name, data: text, directory: 'DOCUMENTS', encoding: 'utf8', recursive: true }); if (typeof toast === 'function') toast(t('t_savedto') + ' ' + name); return true; }
+    catch (e) {
+      try { const w = await capP('Filesystem', 'writeFile', { path: name, data: text, directory: 'CACHE', encoding: 'utf8' }); await capP('Share', 'share', { title: name, files: [w.uri] }); return true; }
+      catch (e2) { return false; }
+    }
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], { type: 'application/octet-stream' }));
   a.download = name; document.body.appendChild(a); a.click(); a.remove();

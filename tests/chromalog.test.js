@@ -7,7 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { analyze, linFit, quantify, ANALYSIS_DEFAULTS } = require('../js/analysis.js');
-const { gradAt, parseLine, simulateRun, SimDevice } = require('../js/device.js');
+const { gradAt, parseLine, simulateRun, SimDevice, bytesToHex, hexToBytes, lineSplitter } = require('../js/device.js');
 const C = require('../js/control.js');
 const { sha256 } = require('../js/store.js');
 
@@ -263,4 +263,14 @@ test('A-68 Endschalter und Lecksensor: Anmeldung zuletzt und mit Ziel; Ereignisz
     { key: 'frei', kind: 'display', fw: 'LIMIT', source: 'V:frei', pin: '10' }, { key: 'pa', kind: 'syringe', pin: '4/7/8', max: 60, spm: 1000 }];
   assert.deepEqual(C.configCommands(parts), ['CFG pa SYRINGE 4/7/8 60 1000', 'CFG ende LIMIT 12 pa 1', 'CFG leck LIMIT 13 ALL 0', 'CFG frei LIMIT 10']);
   assert.deepEqual(parseLine('E,STOP,leck'), { kind: 'event', name: 'STOP', key: 'leck' }); assert.deepEqual(parseLine('E,LIMIT,ende'), { kind: 'event', name: 'LIMIT', key: 'ende' });
+});
+
+test('A-69 Android-Verbindung: Zeilen aus Bruchstücken, Hex-Umwandlung für Bluetooth', () => {
+  const got = [], feed = lineSplitter(l => got.push(l));
+  feed('D,1.0,0.01'); feed('2,,,22.5,,,\r\nV,pa,'); feed('41.5\n# OK'); feed('\n');
+  assert.deepEqual(got, ['D,1.0,0.012,,,22.5,,,', 'V,pa,41.5', '# OK']);
+  const bytes = new TextEncoder().encode('SET pa 0.5\n');
+  assert.equal(bytesToHex(bytes), '5345542070612030 2e350a'.replace(' ', ''));
+  assert.deepEqual(Array.from(hexToBytes('53 45-54:0a')), [0x53, 0x45, 0x54, 0x0a], 'Trennzeichen werden übergangen');
+  assert.equal(new TextDecoder().decode(hexToBytes(bytesToHex(bytes))), 'SET pa 0.5\n');
 });

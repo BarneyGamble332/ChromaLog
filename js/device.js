@@ -248,4 +248,63 @@ class BleDevice {
   async close() { this.alive = false; try { if (this.dev && this.dev.gatt.connected) this.dev.gatt.disconnect(); } catch (e) {} }
 }
 
-if (typeof module !== 'undefined') module.exports = { gradAt, parseLine, SimDevice, simulateRun, SIM_COMPOUNDS };
+/*
+ * Android-App (Capacitor): Im eingebauten Browser der App gibt es weder Web Serial noch Web Bluetooth.
+ * Dort übernehmen zwei Plugins die Verbindung: @adeunis/capacitor-serial (USB) und
+ * @capacitor-community/bluetooth-le (Bluetooth). Die Schnittstelle der Klassen bleibt dieselbe.
+ */
+const isNativeApp = () => typeof window !== 'undefined' && !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const capP = (plugin, method, opts) => window.Capacitor.nativePromise(plugin, method, opts || {});
+const capCb = (plugin, method, opts, cb) => window.Capacitor.nativeCallback(plugin, method, opts || {}, cb);
+function bytesToHex(bytes) { let h = ''; for (let i = 0; i < bytes.length; i++) h += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16); return h; }
+function hexToBytes(hex) { const c = String(hex || '').replace(/[^0-9a-fA-F]/g, ''), out = new Uint8Array(c.length >> 1); for (let i = 0; i < out.length; i++) out[i] = parseInt(c.substr(i * 2, 2), 16); return out; }
+/* Zerlegt eintreffenden Text in Zeilen; der Rest bleibt für das nächste Stück liegen */
+function lineSplitter(onLine) { let buf = ''; return text => { buf += text; let i; while ((i = buf.indexOf('\n')) >= 0) { const l = buf.slice(0, i).replace(/\r$/, ''); buf = buf.slice(i + 1); onLine(l); } }; }
+
+class AndroidSerialDevice {
+  constructor(baud) { this.kind = 'usb'; this.baud = baud || 115200; this.onLine = () => {}; this.onClose = () => {}; }
+  async connect() {
+    let r;
+    try { r = await capP('Serial', 'requestSerialPermissions', {}); }
+    catch (e) { const err = new Error('NO_DEVICE'); err.name = 'NoDeviceError'; throw err; }
+    if (!r || !r.granted) { const err = new Error('USB'); err.name = 'SecurityError'; throw err; }
+    await capP('Serial', 'openConnection', { baudRate: this.baud, dtr: true, rts: true });
+    const feed = lineSplitter(l => this.onLine(l)); this.alive = true;
+    capCb('Serial', 'registerReadCallback', {}, (msg, err) => {
+      if (msg && typeof msg.data === 'string') feed(msg.data);
+      else if (err && this.alive) { this.alive = false; this.onClose(); }
+    });
+  }
+  send(cmd) { capP('Serial', 'write', { data: cmd + '\n' }).catch(() => {}); }
+  async close() { this.alive = false; try { await capP('Serial', 'unregisterReadCallback', {}); } catch (e) {} try { await capP('Serial', 'closeConnection', {}); } catch (e) {} }
+}
+
+class AndroidBleDevice {
+  constructor() { this.kind = 'ble'; this.onLine = () => {}; this.onClose = () => {}; this.queue = Promise.resolve(); }
+  async connect() {
+    await capP('BluetoothLe', 'initialize', { androidNeverForLocation: true });
+    let dev;
+    try { dev = await capP('BluetoothLe', 'requestDevice', {}); }
+    catch (e) { const err = new Error('cancelled'); err.name = 'NotFoundError'; throw err; }
+    this.id = dev.deviceId; this.name = dev.name || '';
+    capCb('BluetoothLe', 'addListener', { eventName: 'disconnected|' + this.id }, () => { if (this.alive) { this.alive = false; this.onClose(); } });
+    await capP('BluetoothLe', 'connect', { deviceId: this.id });
+    const sv = await capP('BluetoothLe', 'getServices', { deviceId: this.id });
+    const uuids = ((sv && sv.services) || []).map(q => String(q.uuid).toLowerCase());
+    this.prof = uuids.includes(BLE_NUS.svc) ? BLE_NUS : BLE_HM10;
+    const feed = lineSplitter(l => this.onLine(l)), dec = new TextDecoder();
+    capCb('BluetoothLe', 'addListener', { eventName: 'notification|' + this.id + '|' + this.prof.svc + '|' + this.prof.tx }, ev => { if (ev && ev.value) feed(dec.decode(hexToBytes(ev.value), { stream: true })); });
+    await capP('BluetoothLe', 'startNotifications', { deviceId: this.id, service: this.prof.svc, characteristic: this.prof.tx });
+    this.alive = true;
+  }
+  send(cmd) {
+    const bytes = new TextEncoder().encode(cmd + '\n');
+    for (let i = 0; i < bytes.length; i += 20) {
+      const value = bytesToHex(bytes.slice(i, i + 20));
+      this.queue = this.queue.then(() => capP('BluetoothLe', 'writeWithoutResponse', { deviceId: this.id, service: this.prof.svc, characteristic: this.prof.rx, value })).catch(() => {});
+    }
+  }
+  async close() { this.alive = false; try { await capP('BluetoothLe', 'disconnect', { deviceId: this.id }); } catch (e) {} }
+}
+
+if (typeof module !== 'undefined') module.exports = { gradAt, parseLine, SimDevice, simulateRun, SIM_COMPOUNDS, bytesToHex, hexToBytes, lineSplitter };
