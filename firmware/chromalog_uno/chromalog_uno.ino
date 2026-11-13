@@ -1,5 +1,5 @@
 /*
- * ChromaLog – allgemeiner Sketch für den Arduino Uno          Version 0.1
+ * ChromaLog – allgemeiner Sketch für den Arduino Uno          Version 0.2
  *
  * Der Sketch macht zwei Dinge:
  *  1. UV-Detektor wie in Stufe 1: ADS1115 (A0 = Messdiode, A1 = Referenzdiode),
@@ -24,23 +24,30 @@
  *   CFG <name> <ART> <pins> [max] [schritte_je_ml]   Bauteil anmelden, pins z. B. 9 oder 4/7/8
  *        ART: SWITCH pin | BUTTON pin | SERVO pin | PWM pin | MOTOR pwm/richtung
  *             STEPPER step/dir[/enable] | SYRINGE step/dir[/enable] | HEATER ausgang/ds18b20
- *             SENSOR analogpin | LIMIT pin
+ *             SENSOR analogpin | LIMIT pin [ziel] [richtung]
+ *        LIMIT mit Ziel: Endschalter (Kontakt gegen Masse). ziel = Name einer Pumpe oder ALL (Lecksensor).
+ *        richtung 1 = stoppt Fördern (Spritze leer), -1 = stoppt Füllen (Spritze voll), 0 = stoppt beides.
+ *        Das Ziel muss vorher angemeldet sein.
  *   SET <name> <wert>     SWITCH 0/1 · SERVO Winkel 0–180 · PWM 0–100 % · MOTOR −100…100 %
  *                         STEPPER/SYRINGE ml/min (negativ = rückwärts bzw. füllen)
  *                         HEATER Solltemperatur in °C (0 = aus)
  *   VOL <name> <ml>       Füllstand einer Spritze setzen
  *   CLEAR                 alle Bauteile abmelden und ausschalten
+ *   WATCHDOG <s>          kommt so viele Sekunden nichts von der App, halten alle Pumpen an (0 = aus)
+ *   PING                  Lebenszeichen der App
  *   LED 0|1 · ZERO (oder n) · DARK (oder d) · RATE <Hz> · STOP (alle Pumpen und Heizungen aus)
  *
  * Meldungen:
  *   READY ChromaLog-Uno <version>                  nach dem Start
  *   D,<t_s>,<extinktion_AU>,,,<temp_C>,,,          Datenzeile
  *   V,<name>,<wert>                                Füllstand, Ist-Temperatur, Sensor, Endschalter (1 = betätigt)
+ *   E,STOP,<name>                                  Lecksensor hat alles gestoppt
+ *   E,LIMIT,<name>                                 Endschalter hat eine Pumpe angehalten
  *   # Text                                         Hinweise und Fehler
  *
  * Sicherheit: Die Heizung regelt hier im Arduino, auch ohne Verbindung zur App.
  * Über HEATER_MAX_C oder bei Fühlerfehler schaltet sie ab.
- * Noch nicht enthalten: Endschalter an den Spritzenpumpen, Drehventil mit Referenzfahrt.
+ * Noch nicht enthalten: Drehventil mit Schrittmotor und Referenzfahrt.
  */
 #include <Wire.h>
 #include <Servo.h>
@@ -48,12 +55,13 @@
 #include <DallasTemperature.h>
 #include <Adafruit_ADS1X15.h>
 
-#define FW_VERSION "0.1"
+#define FW_VERSION "0.2"
 const uint8_t PIN_LED = 3;
 const uint8_t PIN_DS18B20 = 2;
 const float HEATER_MAX_C = 70.0;      // höchste erlaubte Solltemperatur
 const float HEATER_HYST_C = 0.3;      // Schaltabstand der Heizung
 const uint8_t MAX_PARTS = 8, MAX_SERVO = 4, MAX_STEP = 2, MAX_HEAT = 2, NOPIN = 255;
+const uint8_t T_NONE = 255, T_ALL = 254;      // Ziel eines Endschalters: keines / alles
 
 enum Kind : uint8_t { K_NONE, K_SWITCH, K_BUTTON, K_SERVO, K_PWM, K_MOTOR, K_STEPPER, K_SYRINGE, K_HEATER, K_SENSOR, K_LIMIT };
 const char KN0[] PROGMEM = "SWITCH"; const char KN1[] PROGMEM = "BUTTON"; const char KN2[] PROGMEM = "SERVO"; const char KN3[] PROGMEM = "PWM";
@@ -65,9 +73,9 @@ struct Part {
   char key[11];
   Kind kind;
   uint8_t pin[3];
-  uint8_t slot;          // Platz in der Servo-, Schrittmotor- oder Heizungstabelle
+  uint8_t slot;          // Platz in der Servo-, Schrittmotor- oder Heizungstabelle · LIMIT: Nummer des Ziel-Bauteils
   float val;             // Sollwert
-  float par;             // SYRINGE: Spritzenvolumen in ml
+  float par;             // SYRINGE: Spritzenvolumen in ml · LIMIT: Richtung (1, -1, 0)
   float spm;             // Schritte je ml (0 = Wert ist Schritte je Sekunde)
   float aux;             // SYRINGE: Füllstand in ml · HEATER: Ist-Temperatur
   unsigned long tOff;    // BUTTON: Ende des Impulses
@@ -87,7 +95,8 @@ DallasTemperature detTemp(&detWire);
 bool hasAds = false, ledOn = false, zeroReq = false, darkReq = false;
 float sumI = 0, sumR = 0, darkI = 0, darkR = 0, ratio0 = 1, tempC = NAN;
 uint16_t nAvg = 0;
-unsigned long dataMs = 1000, tData = 0, tSlow = 0, tVol = 0;
+unsigned long dataMs = 1000, tData = 0, tSlow = 0, tVol = 0, lastRx = 0, wdMs = 0;
+bool wdTripped = false;
 char line[72];
 uint8_t lineLen = 0;
 
@@ -186,6 +195,7 @@ void cmdCfg(char *key, char *kindStr, char *pinStr, char *a, char *b) {
   p.kind = k; p.pin[0] = pins[0]; p.pin[1] = pins[1]; p.pin[2] = pins[2];
   p.val = 0; p.tOff = 0; p.slot = 0; p.aux = NAN;
   p.par = a ? atof(a) : 0; p.spm = b ? atof(b) : 0;
+  if (k == K_LIMIT) p.spm = 0;
   switch (k) {
     case K_SWITCH: case K_BUTTON: case K_PWM: pinMode(pins[0], OUTPUT); digitalWrite(pins[0], LOW); break;
     case K_MOTOR: pinMode(pins[0], OUTPUT); digitalWrite(pins[0], LOW); if (pins[1] != NOPIN) pinMode(pins[1], OUTPUT); break;
@@ -206,7 +216,13 @@ void cmdCfg(char *key, char *kindStr, char *pinStr, char *a, char *b) {
       heaters[p.slot].sensor->begin(); heaters[p.slot].sensor->setWaitForConversion(false); heaters[p.slot].sensor->requestTemperatures();
       break;
     case K_SENSOR: pinMode(pins[0], INPUT); break;
-    case K_LIMIT: pinMode(pins[0], INPUT_PULLUP); break;
+    case K_LIMIT:
+      pinMode(pins[0], INPUT_PULLUP); p.slot = T_NONE; p.par = b ? atof(b) : 0;
+      if (a && *a != '-') {
+        if (!strcasecmp_P(a, PSTR("ALL"))) p.slot = T_ALL;
+        else { for (uint8_t i = 0; i < nParts; i++) if (strcmp(parts[i].key, a) == 0) p.slot = i; if (p.slot == T_NONE) { fail(F("Ziel des Endschalters nicht angemeldet"), key); return; } }
+      }
+      break;
     default: break;
   }
   nParts++;
@@ -217,6 +233,24 @@ void stopAll() {
   for (uint8_t i = 0; i < nParts; i++) {
     Kind k = parts[i].kind;
     if (k == K_STEPPER || k == K_SYRINGE || k == K_MOTOR || k == K_HEATER) setPart(parts[i], 0);
+  }
+}
+void stopPumps() {
+  for (uint8_t i = 0; i < nParts; i++) { Kind k = parts[i].kind; if (k == K_STEPPER || k == K_SYRINGE || k == K_MOTOR) setPart(parts[i], 0); }
+}
+/* Endschalter und Lecksensor: wird in jedem Durchlauf geprüft, auch ohne Verbindung zur App */
+void checkLimits() {
+  for (uint8_t i = 0; i < nParts; i++) {
+    Part &p = parts[i];
+    if (p.kind != K_LIMIT || p.slot == T_NONE) continue;
+    if (digitalRead(p.pin[0]) != LOW) { p.val = 0; continue; }
+    if (p.slot == T_ALL) { if (p.val == 0) { stopAll(); Serial.print(F("E,STOP,")); Serial.println(p.key); p.val = 1; } continue; }
+    Part &t = parts[p.slot];
+    bool blocked = (t.val > 0 && p.par >= 0) || (t.val < 0 && p.par <= 0);
+    if (!blocked) continue;
+    setPart(t, 0);
+    if (t.kind == K_SYRINGE) { if (p.par > 0) t.aux = 0; else if (p.par < 0) t.aux = t.par; }
+    Serial.print(F("E,LIMIT,")); Serial.println(p.key);
   }
 }
 void handleLine(char *s) {
@@ -234,12 +268,14 @@ void handleLine(char *s) {
   else if (!strcasecmp_P(c, PSTR("DARK")) || !strcmp_P(c, PSTR("d"))) darkReq = true;
   else if (!strcasecmp_P(c, PSTR("RATE"))) { float hz = a1 ? atof(a1) : 1; hz = constrain(hz, 0.2, 10); dataMs = (unsigned long)(1000.0 / hz); }
   else if (!strcasecmp_P(c, PSTR("STOP"))) stopAll();
+  else if (!strcasecmp_P(c, PSTR("PING"))) { }
+  else if (!strcasecmp_P(c, PSTR("WATCHDOG"))) { float sec = a1 ? atof(a1) : 0; wdMs = sec > 0 ? (unsigned long)(sec * 1000.0) : 0; wdTripped = false; }
   else if (!strcasecmp_P(c, PSTR("FLOW")) || !strcasecmp_P(c, PSTR("PCTB")) || !strcasecmp_P(c, PSTR("VALVE"))) { Serial.print(F("# ")); Serial.print(c); Serial.println(F(" hat an diesem Aufbau noch keine Wirkung")); }
   else fail(F("unbekannter Befehl"), c);
 }
 void readSerial() {
   while (Serial.available()) {
-    char ch = Serial.read();
+    char ch = Serial.read(); lastRx = millis(); wdTripped = false;
     if (ch == '\n' || ch == '\r') { if (lineLen) { line[lineLen] = 0; handleLine(line); lineLen = 0; } }
     else if (lineLen < sizeof(line) - 1) line[lineLen++] = ch;
   }
@@ -306,6 +342,8 @@ void loop() {
   unsigned long now = millis();
   for (uint8_t i = 0; i < nParts; i++) if (parts[i].kind == K_BUTTON && parts[i].tOff && (long)(now - parts[i].tOff) >= 0) { digitalWrite(parts[i].pin[0], LOW); parts[i].tOff = 0; }
   if (hasAds) { sumI += ads.computeVolts(ads.readADC_SingleEnded(0)); sumR += ads.computeVolts(ads.readADC_SingleEnded(1)); nAvg++; }
+  checkLimits();
+  if (wdMs && !wdTripped && now - lastRx > wdMs) { wdTripped = true; stopPumps(); Serial.println(F("# Keine Verbindung zur App: Pumpen angehalten")); }
   if (now - tVol >= 100) { tVol = now; updateVolumes(); }
   if (now - tData >= dataMs) { tData = now; sendData(now); }
   if (now - tSlow >= 1000) { tSlow = now; slowTasks(); }

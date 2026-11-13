@@ -9,6 +9,7 @@ const assert = require('node:assert/strict');
 const { analyze, linFit, quantify, ANALYSIS_DEFAULTS } = require('../js/analysis.js');
 const { gradAt, parseLine, simulateRun, SimDevice } = require('../js/device.js');
 const C = require('../js/control.js');
+const { sha256 } = require('../js/store.js');
 
 /* Fester Zufall, damit jeder Testlauf dieselben Zahlen liefert */
 function seed(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -231,4 +232,35 @@ test('A-57 Simulator: Spritzenpumpe, Heizung und Messwertzeilen', () => {
   const lines = sim.out.map(parseLine);
   assert.ok(lines.length > 0 && lines.every(l => l && l.kind === 'val'), 'V-Zeilen werden gelesen');
   assert.deepEqual(parseLine('V,pumpea,41.50'), { kind: 'val', key: 'pumpea', value: 41.5 });
+});
+
+test('A-47 Prüfsumme: gleiche Daten ergeben dieselbe Prüfsumme, jede Änderung eine andere', async () => {
+  const d = { t: [0, 0.1, 0.2], uv: [1.5, 2.5, 3.5] }, h = await sha256(JSON.stringify(d));
+  assert.equal(h.length, 64); assert.equal(await sha256(JSON.stringify(JSON.parse(JSON.stringify(d)))), h, 'übersteht Speichern und Laden');
+  d.uv[1] += 0.0001; assert.notEqual(await sha256(JSON.stringify(d)), h);
+  assert.equal(await sha256('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', 'bekannter SHA-256-Wert');
+});
+
+test('A-67 Methodenbefehle werden auf Bauteile mit Rolle abgebildet', () => {
+  const A = { key: 'pa', kind: 'syringe', role: 'pumpA' }, B = { key: 'pb', kind: 'syringe', role: 'pumpB' };
+  const I = { key: 'iv', kind: 'positions', role: 'inj', positions: [{ name: 'Laden', value: '20' }, { name: 'Injizieren', value: '110' }] };
+  const cmds = (parts, st, n, v) => C.methodCommands(parts, st, n, v).map(o => o.cmd);
+  let st = { flow: 0, b: 0 };
+  assert.deepEqual(cmds([A, B, I], st, 'FLOW', '1.000'), ['SET pa 1', 'SET pb 0']);
+  assert.deepEqual(cmds([A, B, I], st, 'PCTB', '25.0'), ['SET pa 0.75', 'SET pb 0.25']);
+  assert.deepEqual(cmds([A, B, I], st, 'FLOW', '0.4'), ['SET pa 0.3', 'SET pb 0.1'], 'Anteil B bleibt bei neuem Fluss erhalten');
+  assert.deepEqual(cmds([A, B, I], st, 'VALVE', 'INJECT'), ['SET iv 110']); assert.deepEqual(cmds([A, B, I], st, 'VALVE', 'LOAD'), ['SET iv 20']);
+  assert.deepEqual(cmds([A, B, I], st, 'STOP'), ['STOP', 'SET pa 0', 'SET pb 0']); assert.equal(st.flow, 0);
+  st = { flow: 0, b: 0 }; const F = { key: 'p', kind: 'syringe', role: 'flow' };
+  assert.deepEqual(cmds([F], st, 'FLOW', '0.5'), ['SET p 0.5']); assert.deepEqual(cmds([F], st, 'PCTB', '40'), [], 'eine Pumpe fährt keinen Gradienten');
+  st = { flow: 0, b: 0 };
+  assert.deepEqual(cmds([], st, 'FLOW', '0.500'), ['FLOW 0.500'], 'ohne Rollen unverändert'); assert.deepEqual(cmds([A], st, 'PCTB', '5.0'), ['PCTB 5.0'], 'nur Pumpe A allein zählt nicht');
+  assert.deepEqual(cmds([], st, 'VALVE', 'INJECT'), ['VALVE INJECT']); assert.deepEqual(cmds([], st, 'STOP'), ['STOP']);
+});
+
+test('A-68 Endschalter und Lecksensor: Anmeldung zuletzt und mit Ziel; Ereigniszeilen werden gelesen', () => {
+  const parts = [{ key: 'ende', kind: 'display', fw: 'LIMIT', source: 'V:ende', pin: '12', target: 'pa', tdir: 1 }, { key: 'leck', kind: 'display', fw: 'LIMIT', source: 'V:leck', pin: '13', target: 'ALL' },
+    { key: 'frei', kind: 'display', fw: 'LIMIT', source: 'V:frei', pin: '10' }, { key: 'pa', kind: 'syringe', pin: '4/7/8', max: 60, spm: 1000 }];
+  assert.deepEqual(C.configCommands(parts), ['CFG pa SYRINGE 4/7/8 60 1000', 'CFG ende LIMIT 12 pa 1', 'CFG leck LIMIT 13 ALL 0', 'CFG frei LIMIT 10']);
+  assert.deepEqual(parseLine('E,STOP,leck'), { kind: 'event', name: 'STOP', key: 'leck' }); assert.deepEqual(parseLine('E,LIMIT,ende'), { kind: 'event', name: 'LIMIT', key: 'ende' });
 });

@@ -27,6 +27,7 @@ function parseLine(line) {
   line = line.trim();
   if (!line) return null;
   const num = s => (s === '' || s == null) ? null : (isFinite(+s) ? +s : null);
+  if (line.startsWith('E,')) { const f = line.split(','); return { kind: 'event', name: f[1] || '', key: f[2] || '' }; }
   if (line.startsWith('V,')) { const f = line.split(','); return f.length >= 3 && f[1] ? { kind: 'val', key: f[1], value: num(f[2]) } : null; }
   if (line.startsWith('D,')) {
     const f = line.split(',');

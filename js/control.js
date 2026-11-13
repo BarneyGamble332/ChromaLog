@@ -12,6 +12,7 @@
  * Bauteile mit eigenem Befehl (z. B. "FLOW {v}") nutzen die Befehle der Methode und brauchen kein CFG.
  */
 const CTL_FW = { switch: 'SWITCH', button: 'BUTTON', positions: 'SERVO', slider: 'PWM', syringe: 'SYRINGE', heater: 'HEATER', display: 'SENSOR' };   /* Vorgabe je Art */
+const CTL_ROLES = ['', 'flow', 'pumpA', 'pumpB', 'inj'];   /* Rolle eines Bauteils im Methodenlauf */
 const CTL_FW_KINDS = ['SWITCH', 'BUTTON', 'SERVO', 'PWM', 'MOTOR', 'STEPPER', 'SYRINGE', 'HEATER', 'SENSOR', 'LIMIT'];
 const CTL_KINDS = Object.keys(CTL_FW);
 
@@ -33,7 +34,8 @@ const CTL_LIB = [
   { lib: 'ds18', group: 'sens', de: 'Temperaturfühler DS18B20', en: 'Temperature sensor DS18B20', kind: 'display', key: 'temp', unit: '°C', source: 'D:temp', dec: 1, pin: '2' },
   { lib: 'cond', group: 'sens', de: 'Leitfähigkeit', en: 'Conductivity', kind: 'display', key: 'leitf', unit: 'µS/cm', source: 'D:cond', dec: 1 },
   { lib: 'analog', group: 'sens', de: 'Analogeingang (0–5 V)', en: 'Analog input (0–5 V)', kind: 'display', key: 'analog', unit: 'V', source: 'V:analog', dec: 3, pin: 'A0', fw: 'SENSOR' },
-  { lib: 'limit', group: 'sens', de: 'Endschalter oder Lecksensor', en: 'Limit switch or leak sensor', kind: 'display', key: 'schalter', unit: '', source: 'V:schalter', dec: 0, pin: '12', fw: 'LIMIT' },
+  { lib: 'limit', group: 'sens', de: 'Endschalter oder Lecksensor', en: 'Limit switch or leak sensor', kind: 'display', key: 'schalter', unit: '', source: 'V:schalter', dec: 0, pin: '12', fw: 'LIMIT', target: '', tdir: 0 },
+  { lib: 'leak', group: 'sens', de: 'Lecksensor (löst „Alles stopp“ aus)', en: 'Leak sensor (triggers “Stop all”)', kind: 'display', key: 'leck', unit: '', source: 'V:leck', dec: 0, pin: '13', fw: 'LIMIT', target: 'ALL', tdir: 0 },
   { lib: 'flow', group: 'hplc', de: 'Fluss gesamt (Befehl FLOW)', en: 'Total flow (FLOW command)', kind: 'slider', key: 'fluss', cmd: 'FLOW {v}', fb: 'flow', min: 0, max: 2, step: 0.05, unit: 'ml/min', safe: '0', stop: true },
   { lib: 'pctb', group: 'hplc', de: 'Anteil B (Befehl PCTB)', en: 'Solvent B (PCTB command)', kind: 'slider', key: 'anteilb', cmd: 'PCTB {v}', fb: 'b', min: 0, max: 100, step: 1, unit: '%', safe: '' },
   { lib: 'inj', group: 'hplc', de: 'Injektionsventil (Befehl VALVE)', en: 'Injection valve (VALVE command)', kind: 'positions', key: 'inj', cmd: 'VALVE {v}', fb: 'valve', positions: [{ name: 'Laden', value: 'LOAD' }, { name: 'Injizieren', value: 'INJECT' }], safe: 'LOAD' },
@@ -45,10 +47,36 @@ function partCommand(p, v) {
   const tpl = p.cmd || (p.kind === 'button' ? 'SET {key} 1' : 'SET {key} {v}');
   return tpl.replace(/\{key\}/g, p.key).replace(/\{v\}/g, v == null ? '' : String(v)).replace(/\s+/g, ' ').trim();
 }
-/* Anmeldung aller Bauteile ohne eigenen Befehl beim Gerät */
+/* Anmeldung aller Bauteile ohne eigenen Befehl beim Gerät. Endschalter kommen zuletzt, weil sie sich auf andere Bauteile beziehen. */
 function configCommands(parts) {
-  return parts.filter(p => !p.cmd && !(p.kind === 'display' && String(p.source || '').startsWith('D:'))).map(p => { const fw = p.fw || CTL_FW[p.kind];
-    return 'CFG ' + p.key + ' ' + fw + ' ' + (String(p.pin || '').replace(/\s+/g, '') || '-') + (fw === 'SYRINGE' ? ' ' + (+p.max || 60) + ' ' + (+p.spm || 0) : fw === 'STEPPER' ? ' 0 ' + (+p.spm || 0) : ''); });
+  const fwOf = p => p.fw || CTL_FW[p.kind];
+  return parts.filter(p => !p.cmd && !(p.kind === 'display' && String(p.source || '').startsWith('D:')))
+    .slice().sort((x, y) => (fwOf(x) === 'LIMIT') - (fwOf(y) === 'LIMIT'))
+    .map(p => { const fw = fwOf(p);
+      return 'CFG ' + p.key + ' ' + fw + ' ' + (String(p.pin || '').replace(/\s+/g, '') || '-') +
+        (fw === 'SYRINGE' ? ' ' + (+p.max || 60) + ' ' + (+p.spm || 0) : fw === 'STEPPER' ? ' 0 ' + (+p.spm || 0) : fw === 'LIMIT' && p.target ? ' ' + String(p.target).trim() + ' ' + (+p.tdir || 0) : ''); });
+}
+/*
+ * Methodenbefehle (FLOW, PCTB, VALVE, STOP) auf die Bauteile des Aufbaus abbilden.
+ * Rollen: 'pumpA' + 'pumpB' = Gradient aus zwei Pumpen, 'flow' = eine Pumpe, 'inj' = Injektionsventil
+ * (erste Stellung = Laden, zweite = Injizieren). Ohne Rolle geht der Befehl unverändert ans Gerät.
+ * st = { flow, b } merkt sich die letzten Sollwerte. Ergebnis: [{ cmd, key?, value? }]
+ */
+function methodCommands(parts, st, name, value) {
+  const by = r => (parts || []).find(p => p.role === r), A = by('pumpA'), B = by('pumpB'), F = by('flow'), I = by('inj');
+  const r3 = v => String(+(+v).toFixed(3)), set = (p, v) => ({ cmd: partCommand(p, v), key: p.key, value: v });
+  if (name === 'STOP') { st.flow = 0; const out = [{ cmd: 'STOP' }]; [A, B, F].forEach(p => { if (p) out.push(set(p, '0')); }); return out; }
+  if (name === 'FLOW' || name === 'PCTB') {
+    if (name === 'FLOW') st.flow = +value || 0; else st.b = Math.max(0, Math.min(100, +value || 0));
+    if (A && B) return [set(A, r3(st.flow * (1 - (st.b || 0) / 100))), set(B, r3(st.flow * (st.b || 0) / 100))];
+    if (F) return name === 'FLOW' ? [set(F, r3(st.flow))] : [];          /* eine Pumpe kann keinen Gradienten fahren */
+    return [{ cmd: name + ' ' + value }];
+  }
+  if (name === 'VALVE') {
+    const pos = I && (I.positions || [])[value === 'INJECT' ? 1 : 0];
+    return pos ? [set(I, pos.value)] : [{ cmd: 'VALVE ' + value }];
+  }
+  return [{ cmd: (name + ' ' + (value == null ? '' : value)).trim() }];
 }
 /* Was bei „Alles stopp“ gesendet wird */
 function safeCommands(parts) {
@@ -103,4 +131,4 @@ function linkPath(a, b) {
   return 'M' + r(sx) + ' ' + r(sy) + ' C' + r(c1[0]) + ' ' + r(c1[1]) + ' ' + r(c2[0]) + ' ' + r(c2[1]) + ' ' + r(ex) + ' ' + r(ey);
 }
 
-if (typeof module !== 'undefined') module.exports = { CTL_LIB, CTL_KINDS, CTL_FW, CTL_FW_KINDS, partReading, partCommand, configCommands, safeCommands, readSource, stepState, uniqueKey, parsePositions, linkPath };
+if (typeof module !== 'undefined') module.exports = { CTL_LIB, CTL_KINDS, CTL_FW, CTL_FW_KINDS, CTL_ROLES, methodCommands, partReading, partCommand, configCommands, safeCommands, readSource, stepState, uniqueKey, parsePositions, linkPath };

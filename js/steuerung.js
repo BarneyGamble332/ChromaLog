@@ -36,12 +36,12 @@ function ctlSend(p, v) {
   if (S.phase !== 'idle') { toast(t('ctl_runlock'), true); return false; }
   CTL.values[p.key] = v; const c = partCommand(p, v); cmd(c); ctlLogLine(c); return true;
 }
-function ctlStopAll() {
+function ctlStopAll(byDevice) {
   if (CTL.run) ctlProcEnd('stopped');
   if (S.seq.running) seqEnd(false);
   if (S.phase === 'run') finishRun(true, 'user'); else if (S.phase === 'equil') { S.phase = 'idle'; S.run = null; renderControls(); }
   safeCommands(ctlL().parts).forEach(s => { CTL.values[s.key] = s.value; cmd(s.cmd); ctlLogLine(s.cmd); });
-  cmd('STOP'); ctlLogLine('STOP'); logAudit('stop all', ctlL().name); toast(t('ctl_stopped'), true); renderCtl();
+  cmd('STOP'); ctlLogLine('STOP'); logAudit('stop all', ctlL().name + (byDevice ? ' · ' + byDevice : '')); toast(byDevice ? t('ctl_devstop') + ' ' + byDevice : t('ctl_stopped'), true); if (S.tab === 'steuerung') renderCtl();
 }
 
 /* ---------- Kacheln ---------- */
@@ -130,7 +130,8 @@ function ctlOpenLib() {
 }
 const CTL_FIELDS = [
   { k: 'name', l: 'm_name' }, { k: 'key', l: 'ctl_key' }, { k: 'kind', l: 'ctl_kind', sel: true }, { k: 'pin', l: 'ctl_pin' }, { k: 'fw', l: 'ctl_fw', fwsel: true },
-  { k: 'spm', l: 'ctl_spm', num: true, kinds: ['syringe', 'slider'] }, { k: 'scale', l: 'ctl_scale', num: true, kinds: ['display'] }, { k: 'offset', l: 'ctl_offset', num: true, kinds: ['display'] },
+  { k: 'spm', l: 'ctl_spm', num: true, kinds: ['syringe', 'slider'] }, { k: 'role', l: 'ctl_role', rolesel: true, kinds: ['syringe', 'slider', 'positions'] },
+  { k: 'target', l: 'ctl_target', kinds: ['display'] }, { k: 'tdir', l: 'ctl_tdir', num: true, kinds: ['display'] }, { k: 'scale', l: 'ctl_scale', num: true, kinds: ['display'] }, { k: 'offset', l: 'ctl_offset', num: true, kinds: ['display'] },
   { k: 'min', l: 'ctl_min', num: true, kinds: ['slider', 'heater'] }, { k: 'max', l: 'ctl_max', num: true, kinds: ['slider', 'heater'] }, { k: 'max', l: 'ctl_max_syr', num: true, kinds: ['syringe'] },
   { k: 'step', l: 'ctl_step', num: true, kinds: ['slider', 'syringe', 'heater'] }, { k: 'unit', l: 'ctl_unit', kinds: ['slider', 'display'] }, { k: 'fill', l: 'ctl_fillrate', num: true, kinds: ['syringe'] },
   { k: 'positions', l: 'ctl_positions', kinds: ['positions'], wide: true }, { k: 'off', l: 'ctl_off', kinds: ['switch'] }, { k: 'on', l: 'ctl_on', kinds: ['switch'] },
@@ -149,6 +150,8 @@ function ctlOpenPart(p, isNew) {
       const id = 'pf_' + f.k, val = w[f.k] == null ? '' : w[f.k];
       let inp;
       if (f.sel) inp = '<select id="' + id + '" data-f="kind">' + CTL_KINDS.map(k => '<option value="' + k + '"' + (k === w.kind ? ' selected' : '') + '>' + t('k_' + k) + '</option>').join('') + '</select>';
+      else if (f.rolesel) { const opts = w.kind === 'positions' ? ['', 'inj'] : ['', 'flow', 'pumpA', 'pumpB'];
+        inp = '<select id="' + id + '" data-f="role">' + opts.map(k => '<option value="' + k + '"' + (k === (w.role || '') ? ' selected' : '') + '>' + t('role_' + (k || 'none')) + '</option>').join('') + '</select>'; }
       else if (f.fwsel) inp = '<select id="' + id + '" data-f="fw">' + CTL_FW_KINDS.map(k => '<option value="' + k + '"' + (k === (w.fw || CTL_FW[w.kind]) ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>';
       else if (f.src) { const own = 'V:' + w.key, list = ctlSources(L).filter(s => !s[0].startsWith('P:')); if (!list.some(s => s[0] === own)) list.push([own, own]);
         inp = '<select id="' + id + '" data-f="source">' + list.map(s => '<option value="' + esc(s[0]) + '"' + (s[0] === val ? ' selected' : '') + '>' + esc(s[1]) + '</option>').join('') + '</select>'; }
@@ -166,6 +169,7 @@ function ctlOpenPart(p, isNew) {
       w.key = uniqueKey(w.key, L.parts.filter(q => q.id !== p.id)); w.name = w.name || w.key; w.positions = parsePositions(w.positions);
       if (w.kind === 'positions' && !w.positions.length) w.positions = [{ name: '1', value: '1' }, { name: '2', value: '2' }];
       if ((w.kind === 'slider' || w.kind === 'heater') && !(w.max > w.min)) w.max = (+w.min || 0) + 1;
+      if (w.role) L.parts.forEach(q => { if (q.id !== p.id && q.role === w.role) q.role = ''; });
       Object.keys(p).forEach(k => delete p[k]); Object.assign(p, w);
       if (oldKey !== p.key) { (L.procs || []).forEach(pr => pr.steps.forEach(st => { if (st.key === oldKey) st.key = p.key; if (st.src === 'V:' + oldKey) st.src = 'V:' + p.key; if (st.src === 'P:' + oldKey) st.src = 'P:' + p.key; })); delete CTL.values[oldKey]; }
       ctlSave(); ctlConfigure(true); logAudit(isNew ? 'component added' : 'component changed', ctlL().name + ' · ' + p.name);
@@ -267,7 +271,7 @@ function ctlBind() {
   });
   $('#ctlSel').onchange = e => { if (CTL.run) ctlProcEnd('stopped'); CTL.cur = e.target.value; CTL.values = {}; CTL.hist = {}; CTL.linkFrom = null; CTL.procId = null; ctlSave(); ctlConfigure(true); renderCtl(); };
   $('#ctlEdit').onclick = () => { CTL.edit = !CTL.edit; CTL.linkFrom = null; if (!CTL.edit) ctlConfigure(); renderCtl(); };
-  $('#ctlAdd').onclick = ctlOpenLib; $('#ctlStopAll').onclick = ctlStopAll;
+  $('#ctlAdd').onclick = ctlOpenLib; $('#ctlStopAll').onclick = () => ctlStopAll();
   $('#ctlNew').onclick = () => { const l = { id: uid(), name: t('ctl_newlayout') + ' ' + (CTL.layouts.length + 1), parts: [], links: [], procs: [] }; CTL.layouts.push(l); CTL.cur = l.id; CTL.edit = true; CTL.values = {}; CTL.procId = null; ctlSave(); renderCtl(); };
   $('#ctlName').onchange = e => { ctlL().name = e.target.value.trim() || ctlL().name; ctlSave(); renderCtl(); };
   $('#ctlDel').onclick = async () => { if (CTL.layouts.length < 2 || !(await confirmDlg(t('ctl_del_layout')))) return; const L = ctlL(); CTL.layouts = CTL.layouts.filter(l => l.id !== L.id); CTL.cur = CTL.layouts[0].id; CTL.procId = null; ctlSave(); logAudit('setup deleted', L.name); renderCtl(); };

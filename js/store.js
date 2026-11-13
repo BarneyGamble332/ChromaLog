@@ -55,3 +55,5 @@ async function saveFile(name, text) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   return true;
 }
+
+if (typeof module !== 'undefined') module.exports = { sha256 };

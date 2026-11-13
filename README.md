@@ -2,7 +2,7 @@
 
 Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft als Web-App im Browser (Linux-PC, Android) und später als Android-App.
 
-## Stand Version 0.5
+## Stand Version 0.6
 - Live-Chromatogramm in Echtzeit: UV 275 nm, dazu Druck, Leitfähigkeit, Temperatur und Gradient
 - Gerätesteuerung: Lauf mit Equilibrieren, Autozero, Injektion, Gradient-Tabelle, Ventil-Ereignissen und Druckabschaltung; Handsteuerung
 - Anschlüsse: Simulator (ohne Hardware), USB seriell, Bluetooth Low Energy (Nordic UART oder HM-10); WLAN ist vorbereitet
@@ -16,7 +16,8 @@ Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft a
 - Steuerung: Fließbild mit frei angelegten Bauteilen aus einer Bibliothek (Pumpen, Ventile, Heizung, Schalter, Sensoren), verschiebbar und mit Leitungen verbindbar; mehrere Aufbauten; „Alles stopp“; einfache Abläufe (Stellen, Warten, Warten bis)
 - Sequenzen: Probenliste (Blindwert, Standards, Proben) läuft nacheinander ab, auf Wunsch mit Bestätigung vor jeder Probe
 - Messbericht zum Drucken oder als PDF/HTML speichern
-- Nachvollziehbarkeit: Rohdaten mit SHA-256-Prüfsumme, Protokoll aller Aktionen
+- Methodenlauf am Prototyp: Bauteile mit Rolle (Pumpe A/B, Injektionsventil) werden von der Methode gefahren
+- Nachvollziehbarkeit: Prüfsumme wird beim Öffnen und Importieren nachgerechnet; Rohdaten mit SHA-256-Prüfsumme, Protokoll aller Aktionen
 - Deutsch und Englisch
 
 ## Starten
@@ -35,7 +36,10 @@ https://barneygamble332.github.io/ChromaLog/ in Chrome oder Chromium öffnen. US
 
 ## Tests und Anforderungen
 - `docs/ANFORDERUNGEN.md`: Anforderungen mit Nachweis und Status
-- `tests/chromalog.test.js`: automatische Tests der Rechenkerne, Start mit `npm test`; laufen bei jedem Push über GitHub Actions
+- `tests/chromalog.test.js`: Tests der Rechenkerne (`npm test`)
+- `tests/e2e.test.js`: Tests der Oberfläche im Browser mit dem Simulator (`npm install`, dann `npm run test:ui`)
+- `tests/firmware/`: Logiktest des Arduino-Sketches am PC (`npm run test:fw`)
+- Alle Tests und die Übersetzung des Sketches laufen bei jedem Push über GitHub Actions
 
 ## Aufbau
 - `js/device.js` Anschlüsse, Protokoll, Simulator

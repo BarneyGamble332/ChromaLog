@@ -1,15 +1,18 @@
 # ChromaLog – Anforderungen und Nachweise
 
-Stand: 12.11.2026 · gilt für Version 0.5
+Stand: 12.11.2026 · gilt für Version 0.6
 
 Dieses Dokument hält fest, was die Software können muss, und womit jede Anforderung nachgewiesen ist. Es ist die Grundlage für eine spätere Validierung. Bei jeder Änderung an der Software wird es mitgepflegt.
 
 ## Wie der Nachweis geführt wird
-- **Automatisch:** Test in `tests/chromalog.test.js` mit derselben Nummer. Die Tests laufen bei jedem Push auf GitHub (Reiter „Actions“, Workflow „Tests“); der Testbericht wird dort zu jedem Stand aufbewahrt. Lokal: `npm test`.
-- **Browser-Test:** von Hand bzw. skriptgesteuert im Browser mit dem Simulator geprüft, mit Datum. Diese Prüfungen laufen noch nicht automatisch mit.
+- **Automatisch:** Test der Rechenkerne in `tests/chromalog.test.js` mit derselben Nummer (`npm test`).
+- **Automatisch im Browser:** Test der Oberfläche in `tests/e2e.test.js`; ein echter Browser bedient die App mit dem Simulator (`npm run test:ui`).
+- **Logiktest am PC:** Der Arduino-Sketch wird mit einer nachgebildeten Arduino-Umgebung für den PC übersetzt und in `tests/firmware/test_fw.cpp` geprüft (`npm run test:fw`). Das prüft Befehle, Grenzen und Abschaltungen, nicht die Elektrik und nicht das Zeitverhalten am echten Gerät.
 - **Offen:** noch nicht nachgewiesen.
 
-Die Referenzdaten der automatischen Tests sind berechnete Chromatogramme aus Gauß-Peaks mit bekannter Fläche, Lage und Breite, dazu Rauschen (σ = 0,05 mAU) und Drift. Der Zufall ist fest eingestellt, jeder Testlauf rechnet mit denselben Zahlen.
+Alle drei Testarten und die Übersetzung des Sketches für den Uno laufen bei jedem Push auf GitHub (Reiter „Actions“, Workflow „Tests“).
+
+Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-Peaks mit bekannter Fläche, Lage und Breite, dazu Rauschen (σ = 0,05 mAU) und Drift. Der Zufall ist fest eingestellt, jeder Testlauf rechnet mit denselben Zahlen.
 
 ## 1 Datenerfassung und Gerät
 | Nr. | Anforderung | Nachweis | Status |
@@ -17,11 +20,11 @@ Die Referenzdaten der automatischen Tests sind berechnete Chromatogramme aus Gau
 | A-01 | Der Gradient wird zwischen den Tabellenzeilen linear interpoliert; vor der ersten und nach der letzten Zeile gilt deren Wert. | Automatisch | erfüllt |
 | A-02 | Datenzeilen des Geräts (`D,…`) werden vollständig und richtig gelesen; ein leeres UV-Feld gilt als „kein Wert“. | Automatisch | erfüllt |
 | A-03 | Der Stufe-1-Sketch (7 Spalten) wird erkannt; Kopfzeilen und Text werden nicht als Messwert gewertet. | Automatisch | erfüllt |
-| A-04 | Ein Lauf läuft in der Reihenfolge Equilibrieren, Autozero, Injektion, Gradient, Ende ab und wird gespeichert. | Browser-Test 12.11.2026 (Simulator) | erfüllt im Simulator |
-| A-05 | Überschreitet der Druck die Grenze der Methode, stoppt die Software die Pumpen und bricht den Lauf ab. | Offen (nur Code-Durchsicht) | offen |
+| A-04 | Ein Lauf läuft in der Reihenfolge Equilibrieren, Autozero, Injektion, Gradient, Ende ab und wird gespeichert. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
+| A-05 | Überschreitet der Druck die Grenze der Methode, stoppt die Software die Pumpen und bricht ab – im Lauf und schon beim Equilibrieren. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
 | A-06 | Verbindung über USB seriell. | Offen (keine Hardware) | offen |
 | A-07 | Verbindung über Bluetooth Low Energy. | Offen (keine Hardware) | offen |
-| A-08 | Eine Sequenz arbeitet die Probenliste der Reihe nach ab und wartet auf Wunsch vor jeder Probe auf Bestätigung. | Browser-Test 12.11.2026 (Simulator, 5 Proben) | erfüllt im Simulator |
+| A-08 | Eine Sequenz arbeitet die Probenliste der Reihe nach ab und wartet auf Wunsch vor jeder Probe auf Bestätigung. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
 
 ## 2 Auswertung
 | Nr. | Anforderung | Toleranz | Nachweis | Status |
@@ -43,20 +46,20 @@ Die Referenzdaten der automatischen Tests sind berechnete Chromatogramme aus Gau
 | A-20 | Die Kalibriergerade liefert Steigung, Achsenabschnitt und R² richtig, wahlweise durch den Nullpunkt. | rechnerisch exakt | Automatisch | erfüllt |
 | A-21 | Mit zu wenigen Punkten entsteht keine Gerade. | – | Automatisch | erfüllt |
 | A-22 | Die Konzentration wird aus Fläche, Steigung und Achsenabschnitt berechnet; Werte außerhalb des kalibrierten Bereichs sind markiert. | exakt | Automatisch | erfüllt |
-| A-23 | Ändern sich Fluss, Gradient, Säule, Laufmittel oder Stoffliste einer Methode, wird ihre Kalibrierung verworfen. | – | Browser-Test 12.11.2026 | erfüllt |
+| A-23 | Ändern sich Fluss, Gradient, Säule, Laufmittel oder Stoffliste einer Methode, wird ihre Kalibrierung verworfen. | – | Automatisch im Browser (Simulator) | erfüllt |
 | A-30 | Gesamtkette: Standards 1, 5 und 20 mg/l kalibrieren, eine Probe mit 3 mg/l wird richtig bestimmt. | ±5 %, R² > 0,999 | Automatisch (Simulator) | erfüllt |
 
 ## 4 Nachvollziehbarkeit und Bericht
 | Nr. | Anforderung | Nachweis | Status |
 | --- | --- | --- | --- |
-| A-40 | Jeder Lauf trägt eine SHA-256-Prüfsumme der Rohdaten. | Browser-Test 12.11.2026 | erfüllt |
-| A-41 | Die Methode wird mit jedem Lauf mitgespeichert. | Browser-Test 12.11.2026 | erfüllt |
-| A-42 | Auswertung und manuelle Änderungen werden getrennt von den Rohdaten gespeichert und bleiben nach dem Neuladen erhalten. | Browser-Test 12.11.2026 | erfüllt |
+| A-40 | Jeder Lauf trägt eine SHA-256-Prüfsumme der Rohdaten. | Automatisch im Browser (Simulator), im Test A-04 | erfüllt |
+| A-41 | Die Methode wird mit jedem Lauf mitgespeichert. | Automatisch im Browser (Simulator), im Test A-04 | erfüllt |
+| A-42 | Auswertung und manuelle Änderungen werden getrennt von den Rohdaten gespeichert und bleiben nach dem Neuladen erhalten. | Automatisch im Browser (Simulator) | erfüllt |
 | A-43 | Verbinden, Läufe, Methodenänderungen, Kalibrierungen, Auswertungen, Exporte und Löschungen stehen im Protokoll. | Teilweise Browser-Test | teilweise |
-| A-44 | Der Messbericht enthält Probe, Methode, Chromatogramm, Ergebnis, Kalibrierung, Integrationsparameter, Prüfsumme und Software-Version; simulierte Daten sind gekennzeichnet. | Browser-Test 12.11.2026 | erfüllt |
+| A-44 | Der Messbericht enthält Probe, Methode, Chromatogramm, Ergebnis, Kalibrierung, Integrationsparameter, Prüfsumme mit Prüfergebnis und Software-Version; simulierte Daten sind gekennzeichnet. | Automatisch im Browser (Simulator) | erfüllt |
 | A-45 | Das Protokoll hält fest, wer eine Aktion ausgeführt hat (Anmeldung, Rollen, elektronische Unterschrift). | – | nicht umgesetzt |
 | A-46 | Daten und Protokoll liegen manipulationssicher und mit Sicherung vor. | – | nicht umgesetzt (Browser-Speicher) |
-| A-47 | Prüfung der Prüfsumme beim Öffnen oder Importieren eines Laufs. | – | nicht umgesetzt |
+| A-47 | Beim Öffnen und beim Importieren eines Laufs wird die Prüfsumme nachgerechnet. Veränderte Rohdaten werden markiert, im Protokoll vermerkt und im Bericht ausgewiesen. | Automatisch (Rechenkern und Browser) | erfüllt |
 
 ## 5 Steuerung (Fließbild, Bauteile, Abläufe)
 | Nr. | Anforderung | Nachweis | Status |
@@ -69,18 +72,20 @@ Die Referenzdaten der automatischen Tests sind berechnete Chromatogramme aus Gau
 | A-55 | Kurznamen sind je Aufbau eindeutig; Stellungen werden aus „Name=Wert“ gelesen. | Automatisch | erfüllt |
 | A-56 | Eine Leitung verlässt die Kachel an der Seite, die zum Ziel zeigt. | Automatisch | erfüllt |
 | A-57 | Simulator: Spritzenpumpe fördert das eingestellte Volumen und hält leer an; Heizung erreicht den Sollwert; Messwertzeilen werden gelesen. | Automatisch | erfüllt |
-| A-58 | Bauteile lassen sich verschieben, verbinden, ändern und löschen; der Aufbau bleibt nach dem Neuladen erhalten. | Browser-Test 12.11.2026 (Simulator) | erfüllt im Simulator |
-| A-59 | „Alles stopp“ beendet einen laufenden Ablauf und stoppt die Pumpen. | Browser-Test 12.11.2026 (Simulator) | erfüllt im Simulator |
-| A-60 | Während eines Methodenlaufs ist die Steuerung gesperrt; „Alles stopp“ bricht auch den Methodenlauf ab. | Offen (nur Code-Durchsicht) | offen |
-| A-61 | Allgemeiner Sketch für den Arduino Uno (`firmware/chromalog_uno`), der `CLEAR`, `CFG` und `SET` versteht und Messwerte als `V`-Zeilen meldet. | Übersetzt bei jedem Push fehlerfrei (Workflow „Tests“, Schritt „firmware“). Funktion am Gerät offen. | umgesetzt, am Gerät ungetestet |
-| A-62 | Heizung: Regelung und Übertemperatur-Abschaltung laufen im Gerät, auch ohne Verbindung zur App. | Nur Code-Durchsicht | umgesetzt, am Gerät ungetestet |
-| A-63 | Ein Endschalter oder Lecksensor kann „Alles stopp“ auslösen. | – | nicht umgesetzt |
+| A-58 | Bauteile lassen sich verschieben, verbinden, ändern und löschen; der Aufbau bleibt nach dem Neuladen erhalten. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
+| A-59 | „Alles stopp“ beendet einen laufenden Ablauf und stoppt die Pumpen. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
+| A-60 | Während eines Methodenlaufs ist die Steuerung gesperrt; „Alles stopp“ bricht auch den Methodenlauf ab. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
+| A-61 | Allgemeiner Sketch für den Arduino Uno (`firmware/chromalog_uno`), der `CLEAR`, `CFG` und `SET` versteht, Pin-Regeln prüft und Messwerte als `V`-Zeilen meldet. | Übersetzung für den Uno und Logiktest am PC (F-01 bis F-12, F-60 bis F-70) | Logik geprüft, am Gerät ungetestet |
+| A-62 | Heizung: Regelung, Begrenzung des Sollwerts und Abschaltung bei Fühlerfehler oder Übertemperatur laufen im Gerät, auch ohne Verbindung zur App. | Logiktest am PC (F-30 bis F-32, F-50) | Logik geprüft, am Gerät ungetestet |
+| A-63 | Lecksensor: Der Sketch stoppt Pumpen und Heizungen selbst und meldet es; die App führt daraufhin „Alles stopp“ aus. | Logiktest am PC (F-40) und automatisch im Browser | Logik geprüft, am Gerät ungetestet |
 | A-64 | Anzeigen rechnen den Rohwert um (Faktor und Versatz), z. B. Volt in bar; Abläufe können auf den umgerechneten Wert warten. | Automatisch (im Test A-54) | erfüllt |
-| A-65 | Nach dem Neustart des Arduino (`READY`) meldet die App alle Bauteile des Aufbaus neu an. | Offen (keine Hardware) | offen |
-| A-66 | Endschalter an den Spritzenpumpen und Abschaltung bei Verbindungsabriss. | – | nicht umgesetzt |
+| A-65 | Nach dem Neustart des Arduino (`READY`) meldet die App alle Bauteile des Aufbaus neu an und schaltet die Verbindungsüberwachung ein. | Automatisch im Browser (nachgestellte READY-Zeile) | am Gerät ungetestet |
+| A-66 | Endschalter halten eine Pumpe in der eingestellten Richtung an und berichtigen den Füllstand. Bleibt das Lebenszeichen der App aus, halten die Pumpen an; die Heizung regelt weiter. | Logiktest am PC (F-20, F-21, F-50, F-51) | Logik geprüft, am Gerät ungetestet |
+| A-67 | Ein Methodenlauf fährt die Bauteile mit Rolle: Pumpe A und B teilen den Fluss nach dem Anteil B, das Injektionsventil schaltet zwischen erster und zweiter Stellung; ohne Rollen gehen die Befehle unverändert ans Gerät. | Automatisch (Rechenkern und Browser) | erfüllt im Simulator |
+| A-68 | Endschalter und Lecksensor werden nach ihrem Ziel angemeldet; Ereigniszeilen des Geräts (`E,STOP`, `E,LIMIT`) werden gelesen. | Automatisch | erfüllt |
 
 ## Bekannte Grenzen
-- Die Tests prüfen die Rechenkerne (`js/analysis.js`, `js/device.js`, `js/control.js`). Die Oberfläche und der Ablauf im Browser sind noch nicht automatisch abgedeckt.
+- Die Browser-Tests decken die wichtigsten Abläufe ab, nicht jede Schaltfläche. Die Bedienung am Handy ist nicht getestet.
 - Referenzdaten sind berechnet. Ein Vergleich mit einer etablierten Chromatographie-Software an echten Messdaten steht aus.
 - Mit echter Hardware ist noch nichts geprüft.
 - Die Toleranzen gelten für Peaks mit Signal/Rausch-Verhältnis deutlich über der Schwelle; nahe der Nachweisgrenze sind sie nicht nachgewiesen.
@@ -91,3 +96,4 @@ Die Referenzdaten der automatischen Tests sind berechnete Chromatogramme aus Gau
 | 12.11.2026 | 0.3 | Erste Fassung: 31 Anforderungen, davon 17 mit automatischem Test. |
 | 12.11.2026 | 0.4 | Abschnitt 5 „Steuerung“ ergänzt: 14 Anforderungen, davon 8 mit automatischem Test. Insgesamt 45 Anforderungen, 25 automatische Tests. |
 | 12.11.2026 | 0.5 | Uno-Sketch ergänzt (A-61, A-62 umgesetzt, ungetestet), A-64 bis A-66 neu. Insgesamt 48 Anforderungen. |
+| 13.11.2026 | 0.6 | Prüfsummen-Prüfung (A-47), Rollen im Methodenlauf (A-67), Endschalter, Lecksensor und Verbindungsüberwachung im Sketch (A-63, A-66, A-68). Neu: 9 Browser-Tests und 48 Prüfungen der Sketch-Logik am PC; die bisherigen Browser-Prüfungen von Hand sind damit automatisch. Insgesamt 50 Anforderungen. |

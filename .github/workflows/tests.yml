@@ -11,7 +11,7 @@ jobs:
         with:
           node-version: 22
       - name: Automatische Tests
-        run: node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination=testbericht.tap tests/*.test.js
+        run: node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination=testbericht.tap tests/chromalog.test.js
       - name: Testbericht aufbewahren
         if: always()
         uses: actions/upload-artifact@v4
@@ -29,3 +29,16 @@ jobs:
           for r in arduino/ArduinoCore-avr arduino-libraries/Servo PaulStoffregen/OneWire milesburton/Arduino-Temperature-Control-Library adafruit/Adafruit_ADS1X15 adafruit/Adafruit_BusIO; do git clone -q --depth 1 https://github.com/$r; done
       - name: Uno-Sketch übersetzen
         run: tools/build_firmware.sh /tmp/ard
+      - name: Logik des Sketches am PC prüfen
+        run: tests/firmware/run.sh
+  oberflaeche:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Tests der Oberfläche im Browser
+        run: npm run test:ui

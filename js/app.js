@@ -4,7 +4,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const CH = ['uv', 'cond', 'press', 'temp', 'flow', 'b'];
-const APP_VERSION = '0.5';
+const APP_VERSION = '0.6';
 
 const DEFAULT_METHODS = [
   { id: 'm-screening', name: 'Abwasser-Screening (Gradient)', column: 'C18, 100 × 4,6 mm', solventA: 'Wasser + 0,1 % Ameisensäure', solventB: 'Acetonitril',
@@ -22,7 +22,7 @@ const S = {
   methods: [], runs: [], auditLog: [], dev: null, last: null, stage1: false, led: true,
   mon: { t: [], uv: [], cond: [], press: [], temp: [], b: [] }, phase: 'idle', run: null,
   view: { auto: true }, aView: { auto: true }, aRun: null, aRes: null, editM: null, editDirty: false,
-  console: [], dirty: true, tab: 'messen', cal: { excluded: {}, sel: null, res: null }, aEdits: { manual: [], removed: [] }, aOverlay: [], aManualMode: false, seq: { rows: [], running: false, idx: -1, confirm: true }
+  console: [], dirty: true, tab: 'messen', mstate: { flow: 0, b: 0 }, lastPing: 0, aHash: 'unknown', cal: { excluded: {}, sel: null, res: null }, aEdits: { manual: [], removed: [] }, aOverlay: [], aManualMode: false, seq: { rows: [], running: false, idx: -1, confirm: true }
 };
 let plotLive, plotAna, plotGrad, plotCal;
 
@@ -47,6 +47,10 @@ const fileSafe = s => String(s).replace(/[^\wäöüÄÖÜß.-]+/g, '_').slice(0,
 
 /* ---------- Gerät ---------- */
 function cmd(c) { if (!S.dev) return; S.dev.send(c); log('> ' + c); }
+/* Methodenbefehl senden; hat der Aufbau Bauteile mit Rolle (Pumpe A/B, Injektionsventil), gehen die Befehle an diese */
+function mcmd(name, value) {
+  methodCommands(CTL.layouts.length ? ctlL().parts : [], S.mstate, name, value).forEach(o => { if (o.key) CTL.values[o.key] = o.value; cmd(o.cmd); });
+}
 async function connectDevice(kind) {
   if (S.phase !== 'idle') return;
   if (kind === 'usb' && !('serial' in navigator)) { $('#connHint').textContent = t('usb_unsupported'); return; }
@@ -64,7 +68,7 @@ async function connectDevice(kind) {
   S.dev = dev; S.stage1 = false; S.last = null; CTL.fbDone = false; $('#connHint').textContent = '';
   CH.concat('t').forEach(k => { if (S.mon[k]) S.mon[k].length = 0; });
   if (kind === 'sim') dev.speed = +$('#selSpeed').value;
-  cmd('RATE ' + curMethod().rate); ctlConfigure(true);
+  cmd('RATE ' + curMethod().rate); ctlConfigure(true); if (kind !== 'sim') cmd('WATCHDOG 10');
   logAudit('connect', kind + (dev.name ? ' ' + dev.name : ''));
   S.dirty = true;
 }
@@ -72,8 +76,10 @@ async function disconnectDevice() { if (S.dev) { const d = S.dev; S.dev = null; 
 
 function onLine(line) {
   const s = parseLine(line);
-  if (!s) { if (line.trim()) log(line); if (line.startsWith('READY')) { cmd('RATE ' + curMethod().rate); ctlConfigure(true); } return; }   /* Arduino ist nach dem Neustart bereit */
+  if (!s) { if (line.trim()) log(line); if (line.startsWith('READY')) { cmd('RATE ' + curMethod().rate); ctlConfigure(true); cmd('WATCHDOG 10'); } return; }   /* Arduino ist nach dem Neustart bereit */
   if (S.tab === 'system') log(line);
+  if (S.dev && S.dev.kind !== 'sim' && performance.now() - S.lastPing > 2000) { S.lastPing = performance.now(); S.dev.send('PING'); }   /* Lebenszeichen für die Überwachung im Arduino */
+  if (s.kind === 'event') { log(line); if (s.name === 'STOP') ctlStopAll(s.key || '?'); else { ctlLogLine(t('ctl_limit') + ' ' + s.key); toast(t('ctl_limit') + ' ' + s.key, true); } return; }
   if (s.kind === 'val') { ctlValue(s.key, s.value); S.dirty = true; return; }
   if (s.kind === 'stage1' && !S.stage1) { S.stage1 = true; toast(t('t_stage1')); }
   if (s.uv != null) s.uv *= 1000;                       /* intern in mAU */
@@ -83,15 +89,18 @@ function onLine(line) {
   if (S.phase === 'equil') {
     const r = S.run, me = r.method;
     if (r.tEq == null) r.tEq = s.t;
+    if (s.press != null && s.press > me.pmax) {          /* Überdruck schon beim Equilibrieren */
+      mcmd('STOP'); toast(t('t_overp'), true); logAudit('overpressure during equilibration', r.name); S.phase = 'idle'; S.run = null; if (S.seq.running) seqEnd(false); renderControls(); S.dirty = true; return;
+    }
     const ready = s.b == null || (Math.abs(s.b - gradAt(me, 0)) < 0.6 && (s.flow == null || Math.abs(s.flow - me.flow) < 0.05));
     if ((ready && s.t - r.tEq >= 3) || s.t - r.tEq > 240) beginRun(s);
   } else if (S.phase === 'run') {
     const r = S.run, me = r.method, tm = (s.t - r.t0) / 60, d = r.data;
     d.t.push(+tm.toFixed(5)); CH.forEach(k => d[k].push(s[k] == null ? null : +s[k].toFixed(4)));
     const b = gradAt(me, tm);
-    if (Math.abs(b - r.lastB) >= 0.1) { r.lastB = b; cmd('PCTB ' + b.toFixed(1)); }
-    (me.events || []).forEach((ev, i) => { if (!r.evDone[i] && tm >= ev.t) { r.evDone[i] = true; cmd('VALVE ' + ev.pos); } });
-    if (s.press != null && s.press > me.pmax) { cmd('STOP'); toast(t('t_overp'), true); finishRun(true, 'overpressure'); }
+    if (Math.abs(b - r.lastB) >= 0.1) { r.lastB = b; mcmd('PCTB', b.toFixed(1)); }
+    (me.events || []).forEach((ev, i) => { if (!r.evDone[i] && tm >= ev.t) { r.evDone[i] = true; mcmd('VALVE', ev.pos); } });
+    if (s.press != null && s.press > me.pmax) { mcmd('STOP'); toast(t('t_overp'), true); finishRun(true, 'overpressure'); }
     else if (tm >= me.runtime) finishRun(false);
   }
   S.dirty = true;
@@ -110,20 +119,20 @@ function startRun(opts) {
     data: { t: [], uv: [], cond: [], press: [], temp: [], flow: [], b: [] }, tEq: null, t0: 0, lastB: gradAt(m, 0), evDone: {}
   };
   if (S.dev.kind === 'sim') S.dev.sample = { type, conc: S.run.conc };
-  cmd('LED 1'); S.led = true; cmd('RATE ' + m.rate); cmd('FLOW ' + m.flow.toFixed(3)); cmd('PCTB ' + S.run.lastB.toFixed(1)); cmd('VALVE LOAD');
+  cmd('LED 1'); S.led = true; cmd('RATE ' + m.rate); mcmd('FLOW', m.flow.toFixed(3)); mcmd('PCTB', S.run.lastB.toFixed(1)); mcmd('VALVE', 'LOAD');
   S.phase = 'equil'; S.view = { auto: true }; S.dirty = true; renderControls(); if (CTL.run) ctlProcEnd('stopped');
 }
 function beginRun(s) {
   const r = S.run;
   if (r.method.autozero) cmd(S.stage1 ? 'n' : 'ZERO');
-  cmd('VALVE INJECT');
+  mcmd('VALVE', 'INJECT');
   r.t0 = s.t; r.startedAt = new Date().toISOString(); S.phase = 'run'; S.view = { auto: true }; renderControls();
 }
 async function finishRun(aborted, reason) {
   const r = S.run; if (!r) return;
   const wasRun = S.phase === 'run';
   S.phase = 'idle'; S.run = null; renderControls(); S.dirty = true;
-  cmd('VALVE LOAD'); if (reason !== 'overpressure') cmd('PCTB ' + gradAt(r.method, 0).toFixed(1));
+  mcmd('VALVE', 'LOAD'); if (reason !== 'overpressure') mcmd('PCTB', gradAt(r.method, 0).toFixed(1));
   if (!wasRun || r.data.t.length < 5) { if (S.seq.running) seqEnd(false); return; }
   const rec = { id: r.id, name: r.name, type: r.type, conc: r.conc, vol: r.vol, site: r.site, methodId: r.methodId, method: r.method, device: r.device,
     simulated: r.simulated, aborted: !!aborted, reason: reason || '', startedAt: r.startedAt, data: r.data };
@@ -263,7 +272,7 @@ async function saveMethod() {
 function renderRuns() {
   if (!S.runs.length) { $('#runTable').innerHTML = '<p class="hint">' + t('r_none') + '</p>'; return; }
   $('#runTable').innerHTML = '<table><tr><th>' + t('r_name') + '</th><th>' + t('type') + '</th><th>' + t('r_date') + '</th><th>' + t('method') + '</th><th class="n">' + t('r_dur') + '</th><th class="n">' + t('r_peaks') + '</th><th></th></tr>' +
-    S.runs.map(r => '<tr><td>' + esc(r.name) + (r.example ? '<span class="badge">' + t('r_example') + '</span>' : r.simulated ? '<span class="badge">' + t('r_sim') + '</span>' : '') + (r.aborted ? '<span class="badge crit">' + t('r_aborted') + '</span>' : '') + '</td>' +
+    S.runs.map(r => '<tr><td>' + esc(r.name) + (r.example ? '<span class="badge">' + t('r_example') + '</span>' : r.simulated ? '<span class="badge">' + t('r_sim') + '</span>' : '') + (r.aborted ? '<span class="badge crit">' + t('r_aborted') + '</span>' : '') + (r.hashMismatch ? '<span class="badge crit">' + t('hash_badge') + '</span>' : '') + '</td>' +
       '<td>' + t('ty_' + r.type) + (r.conc != null ? ' ' + fmt(r.conc, 1) + ' mg/l' : '') + '</td><td>' + esc(dateStr(r.startedAt)) + '</td><td>' + esc(r.method.name) + '</td>' +
       '<td class="n">' + fmt(r.data.t[r.data.t.length - 1], 1) + ' min</td><td class="n">' + (r.analysis ? r.analysis.peaks.length : '–') + '</td>' +
       '<td><button type="button" class="btn small primary" data-open="' + r.id + '">' + t('r_open') + '</button> <button type="button" class="btn small" data-csv="' + r.id + '">' + t('csv') + '</button> ' +
@@ -297,7 +306,10 @@ async function importRun(file) {
     if (!r || !r.data || !Array.isArray(r.data.t) || !Array.isArray(r.data.uv) || !r.method) throw new Error('format');
     r.id = uid(); CH.forEach(k => { if (!Array.isArray(r.data[k])) r.data[k] = r.data.t.map(() => null); });
     r.name = r.name || file.name; r.type = r.type || 'sample'; r.startedAt = r.startedAt || new Date().toISOString();
-    await storeRun(r, 'run imported'); toast(t('t_imported'));
+    const claimed = r.hash || null; delete r.hashMismatch;
+    await storeRun(r, 'run imported');
+    if (claimed && r.hash && claimed !== r.hash) { r.hashMismatch = true; r.hashClaimed = claimed; await Store.put('runs', r); await logAudit('checksum mismatch on import', r.name); renderRuns(); toast(t('t_hashbad'), true); }
+    else toast(t('t_imported'));
   } catch (e) { toast(t('t_badfile'), true); }
 }
 
@@ -310,6 +322,13 @@ function openAnalysis(id) {
   const p = (r.analysis && r.analysis.params) || ANALYSIS_DEFAULTS;
   $('#aSn').value = p.sn; $('#aMinW').value = p.minWidth; $('#aBase').value = p.baseWin; $('#aSmooth').value = p.smooth;
   integrate(); fillRunSelect();
+  S.aHash = 'unknown';
+  sha256(JSON.stringify(r.data)).then(h => {
+    if (S.aRun !== r) return;
+    S.aHash = (!h || !r.hash) ? 'unknown' : (h === r.hash && !r.hashMismatch) ? 'ok' : 'bad';
+    if (S.aHash === 'bad') { toast(t('t_hashbad'), true); logAudit('checksum mismatch', r.name); }
+    renderAnalysis();
+  });
 }
 function integrate() {
   const r = S.aRun; if (!r) return;
@@ -327,7 +346,7 @@ function renderAnalysis() {
     (res.peaks.some(p => { const c = concOf(r, p); return c && c.out; }) ? '<p class="hint">' + t('c_outside') + '</p>' : '');
   const row = (k, v, mono) => '<dt>' + t(k) + '</dt><dd' + (mono ? ' class="mono"' : '') + '>' + v + '</dd>';
   $('#aMeta').innerHTML = row('sample', esc(r.name) + ' (' + t('ty_' + r.type) + (r.conc != null ? ', ' + fmt(r.conc, 1) + ' mg/l' : '') + ')') + row('method', esc(r.method.name)) + row('a_started', esc(dateStr(r.startedAt))) +
-    (r.site ? row('site', esc(r.site)) : '') + row('vol', fmt(r.vol, 0) + ' µl') + row('a_points', fmt(r.data.t.length, 0)) + row('a_noise', fmt(res.noise, 3) + ' mAU') + row('a_hash', r.hash ? r.hash.slice(0, 16) + '…' : '–', true);
+    (r.site ? row('site', esc(r.site)) : '') + row('vol', fmt(r.vol, 0) + ' µl') + row('a_points', fmt(r.data.t.length, 0)) + row('a_noise', fmt(res.noise, 3) + ' mAU') + row('a_hash', (r.hash ? r.hash.slice(0, 16) + '… ' : '') + '<span style="font-family:var(--f-body);color:var(--' + (S.aHash === 'bad' ? 'crit' : S.aHash === 'ok' ? 'ok' : 'muted') + ')">' + t('hash_' + S.aHash) + '</span>', true);
   $('#aManual').classList.toggle('on', S.aManualMode); $('#aHint').textContent = t(S.aManualMode ? 'a_manual_hint' : 'hint_zoom');
   $('#aClear').disabled = !(S.aEdits.manual.length || S.aEdits.removed.length);
   $('#aCompare').innerHTML = S.runs.filter(q => q.id !== r.id).slice(0, 30).map(q => { const k = S.aOverlay.indexOf(q.id);
@@ -400,7 +419,7 @@ function reportBody(r, res) {
   h += '<h2>' + t('rep_integ') + '</h2><div class="kv">' + kv(t('a_sn'), fmt(p.sn, 1)) + kv(t('a_minw'), fmt(p.minWidth, 1)) + kv(t('a_base'), fmt(p.baseWin, 1)) + kv(t('a_smooth'), fmt(p.smooth, 1)) +
     kv(t('a_noise'), fmt(res.noise, 3) + ' mAU') + kv(t('a_points'), fmt(r.data.t.length, 0)) + kv(t('rep_manual'), S.aEdits.manual.length) + kv(t('rep_removed'), S.aEdits.removed.length) +
     kv(t('rep_saved'), esc(dateStr(r.analysis && r.analysis.at))) + kv(t('rep_version'), 'ChromaLog ' + APP_VERSION) + '</div>' +
-    '<p><b>' + t('a_hash') + ' (SHA-256):</b> <span class="mono">' + esc(r.hash || '–') + '</span></p>';
+    '<p><b>' + t('a_hash') + ' (SHA-256):</b> <span class="mono">' + esc(r.hash || '–') + '</span> – ' + t('hash_' + S.aHash) + '</p>' + (S.aHash === 'bad' ? '<div class="warn">' + t('t_hashbad') + '</div>' : '');
   h += '<div class="sign"><div>' + t('rep_by') + '</div><div>' + t('rep_date') + '</div><div>' + t('rep_sig') + '</div></div>' +
     '<div class="foot">' + t('rep_made') + ' ' + APP_VERSION + ' · ' + esc(dateStr(new Date().toISOString())) + '</div>';
   return h;
@@ -558,13 +577,13 @@ function bind() {
   $('#btnAbort').onclick = () => { if (S.phase === 'run') finishRun(true, 'user'); else if (S.phase === 'equil') { S.phase = 'idle'; S.run = null; if (S.seq.running) seqEnd(false); renderControls(); S.dirty = true; } };
   $('#selType').onchange = renderControls;
   $('#selMethod').onchange = () => { cmd('RATE ' + curMethod().rate); S.dirty = true; };
-  $('#btnFlow').onclick = () => cmd('FLOW ' + (+$('#inFlow').value || 0).toFixed(3));
-  $('#btnB').onclick = () => cmd('PCTB ' + (+$('#inB').value || 0).toFixed(1));
-  $('#btnLoad').onclick = () => cmd('VALVE LOAD');
-  $('#btnInject').onclick = () => { if (S.dev && S.dev.kind === 'sim') S.dev.sample = { type: $('#selType').value, conc: +$('#inConc').value }; cmd('VALVE INJECT'); };
+  $('#btnFlow').onclick = () => mcmd('FLOW', (+$('#inFlow').value || 0).toFixed(3));
+  $('#btnB').onclick = () => mcmd('PCTB', (+$('#inB').value || 0).toFixed(1));
+  $('#btnLoad').onclick = () => mcmd('VALVE', 'LOAD');
+  $('#btnInject').onclick = () => { if (S.dev && S.dev.kind === 'sim') S.dev.sample = { type: $('#selType').value, conc: +$('#inConc').value }; mcmd('VALVE', 'INJECT'); };
   $('#btnZero').onclick = () => cmd(S.stage1 ? 'n' : 'ZERO');
   $('#btnLed').onclick = () => { S.led = !S.led; cmd('LED ' + (S.led ? 1 : 0)); renderControls(); };
-  $('#btnPumpStop').onclick = () => cmd('STOP');
+  $('#btnPumpStop').onclick = () => mcmd('STOP');
   $('#btnAuto').onclick = () => { S.view = { auto: true }; S.dirty = true; };
   $('#showGrad').onchange = () => { S.dirty = true; };
   $('#pane2Sel').onchange = () => { if (S.view.y) delete S.view.y[1]; S.dirty = true; };
