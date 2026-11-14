@@ -11,7 +11,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { chromium } = require('playwright');
 
-const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
+const BASE = 'file://' + path.resolve(__dirname, '..', 'index.html');
+const URL = BASE + '?demo=1';            /* die meisten Tests laufen im Vorführbetrieb mit Simulator */
 let browser;
 test.before(async () => { browser = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined, args: ['--no-sandbox'] }); });
 test.after(async () => { await browser.close(); });
@@ -238,7 +239,7 @@ test('A-73 Bauteile des Aufbaus erscheinen im Reiter „Messen“ und lassen sic
   await p.evaluate("ctlL().parts.find(q => q.key === 'heizung').onMess = false; ctlRenderNodes()");
   assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), await p.evaluate(active + ' - 1'), 'ausgeblendetes Bauteil fehlt');
   await p.evaluate("location.hash = '#steuerung'"); await p.selectOption('#ctlSel', { label: 'Stufe 1 – UV-Detektor' }); await p.evaluate("location.hash = '#messen'");
-  assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), 4, 'Reiter Messen folgt dem gewählten Aufbau');
+  assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), 7, 'Reiter Messen folgt dem gewählten Aufbau');
   await p.evaluate("ctlL().parts.length = 0; ctlRenderNodes()");
   assert.equal(await p.evaluate("document.querySelector('#mpCard').hidden && !document.querySelector('#manCard').hidden"), true, 'ohne Bauteile erscheint wieder die Handsteuerung');
   await p.click('#mpStop', { force: true }).catch(() => {});
@@ -299,4 +300,62 @@ test('A-07 Android-App: Bluetooth über das BLE-Plugin, Dateien speichern (nachg
   await p.evaluate('fake.noDocuments = true'); assert.equal(await p.evaluate("saveFile('lauf2.csv', 'a,b')"), true);
   assert.ok(await p.evaluate("fake.calls.some(q => q.startsWith('Share.share') && q.includes('file:///cache/lauf2.csv'))"), 'Ausweg über „Teilen“');
   assert.deepEqual(o.errors, []); await o.ctx.close();
+});
+
+/* ---------- Betrieb mit dem echten Gerät (ohne Vorführbetrieb) ---------- */
+/* Nachgebildeter serieller Anschluss: prüft den Weg über Web Serial, den Browser und Linux-Programm benutzen. */
+const FAKE_SERIAL = `(() => { const enc = new TextEncoder();
+  window.fakePort = { written: [], opened: null,
+    open(o) { this.opened = o; let ctl; this.readable = new ReadableStream({ start(c) { ctl = c; } }); this.push = txt => ctl.enqueue(enc.encode(txt));
+      const self = this; this.writable = new WritableStream({ write(chunk) { self.written.push(new TextDecoder().decode(chunk)); } }); return Promise.resolve(); },
+    close() { return Promise.resolve(); } };
+  Object.defineProperty(navigator, 'serial', { configurable: true, value: { getPorts: () => Promise.resolve(localStorage.getItem('fakeGranted') ? [fakePort] : []), requestPort: () => Promise.resolve(fakePort) } }); })();`;
+
+test('A-78 Start ohne Simulation: kein Simulator, keine Beispieldaten, Aufbau und Methode für das Gerät', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'de-DE' });
+  const p = await ctx.newPage(), errors = []; p.on('pageerror', e => errors.push(String(e)));
+  await p.goto(BASE + '#messen'); await p.waitForFunction("typeof CTL !== 'undefined' && CTL.layouts.length && !document.querySelector('#connCard').hidden");
+  const st = await p.evaluate("({ dev: S.dev, runs: S.runs.length, layout: ctlL().name, method: S.methods[0].name, banner: document.querySelector('#simBanner').hidden, tr: document.querySelector('#selTr').value, pill: document.querySelector('#pillConn').textContent })");
+  assert.deepEqual(st, { dev: null, runs: 0, layout: 'Stufe 1 – UV-Detektor', method: 'Detektortest (10 min, ohne Pumpe)', banner: true, tr: 'usb', pill: 'Kein Gerät' });
+  await p.evaluate("location.hash = '#kalibrierung'"); assert.equal(await p.evaluate("!!document.querySelector('#cExample')"), false, 'keine simulierten Beispiel-Standards im echten Betrieb');
+  await p.evaluate("location.hash = '#messen'"); await p.click('#btnStart'); assert.equal(await p.evaluate('S.phase'), 'idle', 'ohne Gerät startet kein Lauf');
+  /* Simulator nur auf ausdrücklichen Wunsch, dann deutlich gekennzeichnet */
+  await p.click('#btnQuickSim'); await p.waitForFunction('S.last && !document.querySelector("#simBanner").hidden');
+  assert.ok((await p.textContent('#simBanner')).includes('keine Messung')); assert.equal(await p.evaluate("document.querySelector('#connCard').hidden"), true);
+  await p.click('#simOff'); await p.waitForFunction('S.dev === null && document.querySelector("#simBanner").hidden');
+  await p.reload(); await p.waitForFunction("typeof CTL !== 'undefined' && CTL.layouts.length && !document.querySelector('#connCard').hidden");
+  assert.equal(await p.evaluate('S.dev'), null, 'der Simulator wird nicht von selbst wieder gestartet');
+  assert.deepEqual(errors, []); await ctx.close();
+});
+
+test('A-79 Arduino über USB (nachgebildeter Anschluss): verbinden, Detektor bedienen, Lauf aufzeichnen, automatisch wiederverbinden', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'de-DE' }); await ctx.addInitScript(FAKE_SERIAL);
+  const p = await ctx.newPage(), errors = []; p.on('pageerror', e => errors.push(String(e)));
+  await p.goto(BASE + '#messen'); await p.waitForFunction("typeof CTL !== 'undefined' && CTL.layouts.length && !document.querySelector('#connCard').hidden");
+  await p.click('#btnQuickUsb'); await p.waitForFunction("S.dev && S.dev.kind === 'usb'");
+  assert.equal(await p.evaluate('fakePort.opened.baudRate'), 115200);
+  await p.evaluate("fakePort.push('READY ChromaLog-Uno 0.3\\r\\nD,1.000,0.010000,,,22.50,,,\\r\\nV,uv_i,2.1000\\r\\nV,uv_'); fakePort.push('r,2.5000\\r\\n')");
+  await p.waitForFunction('S.last && CTL.meas.uv_r === 2.5');
+  assert.deepEqual(await p.evaluate("({ uv: S.last.uv, temp: S.last.temp, press: S.last.press, i: CTL.meas.uv_i })"), { uv: 10, temp: 22.5, press: null, i: 2.1 });
+  const part = n => p.locator('#mParts .node:has-text("' + n + '")');
+  await p.waitForFunction("[...document.querySelectorAll('#mParts .node')].some(n => n.textContent.includes('Messdiode') && n.textContent.includes('2,1000'))");
+  await part('UV-LED').locator('button:has-text("An")').click(); await part('Dunkelwert').locator('button').click(); await part('Autozero').locator('button').click();
+  const w = await p.evaluate('fakePort.written');
+  for (const c of ['RATE 1\n', 'CLEAR\n', 'WATCHDOG 10\n', 'LED 1\n', 'DARK\n', 'ZERO\n']) assert.ok(w.includes(c), 'gesendet: ' + JSON.stringify(c) + ' in ' + JSON.stringify(w));
+  assert.ok(!w.some(c => c.startsWith('CFG')), 'der Aufbau „Stufe 1“ meldet nichts an: ' + JSON.stringify(w.filter(c => c.startsWith('CFG'))));
+  assert.equal(await p.evaluate("document.querySelector('#simBanner').hidden"), true);
+  /* kurzer Lauf mit der Detektortest-Methode; das „Gerät“ liefert einen Messwert je Sekunde */
+  await p.evaluate("S.methods[0].runtime = 0.2; let t = 1; window.feed = setInterval(() => { t += 1; fakePort.push('D,' + t.toFixed(3) + ',' + (0.01 + 0.0001 * t).toFixed(6) + ',,,22.50,,,\\r\\n'); }, 40)");
+  await p.fill('#inName', 'Wasser'); await p.click('#btnStart'); await p.waitForFunction("location.hash === '#auswertung' && S.runs.length === 1", null, { timeout: 30000 });
+  const r = await p.evaluate("({ sim: S.runs[0].simulated, dev: S.runs[0].device, n: S.runs[0].data.t.length, press: S.runs[0].data.press[0], method: S.runs[0].method.name })");
+  assert.equal(r.sim, false); assert.equal(r.dev, 'usb'); assert.ok(r.n >= 10, 'Datenpunkte: ' + r.n); assert.equal(r.press, null); assert.equal(r.method, 'Detektortest (10 min, ohne Pumpe)');
+  await p.waitForFunction("S.aHash !== 'unknown'"); assert.ok((await p.textContent('#aMeta')).includes('Drift je 10 min'), 'Drift steht bei den Laufdaten');
+  await p.click('#aReport'); await p.waitForSelector('#report h1');
+  assert.ok(!(await p.textContent('#report')).includes('Simulierte Daten'), 'Bericht einer echten Messung trägt keinen Simulations-Hinweis');
+  await p.waitForFunction("fakePort.written.includes('PING\\n')", null, { timeout: 8000 });          /* Lebenszeichen für die Verbindungsüberwachung, alle 2 s */
+  /* nach dem Neuladen verbindet sich die App von selbst mit dem freigegebenen Anschluss */
+  await p.evaluate("clearInterval(feed); localStorage.setItem('fakeGranted', '1')"); await p.reload();
+  await p.waitForFunction("typeof S !== 'undefined' && S.dev && S.dev.kind === 'usb'", null, { timeout: 10000 });
+  assert.equal(await p.evaluate("document.querySelector('#connCard').hidden"), true);
+  assert.deepEqual(errors, []); await ctx.close();
 });

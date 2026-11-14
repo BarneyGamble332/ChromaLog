@@ -13,7 +13,7 @@
  */
 const CTL_FW = { switch: 'SWITCH', button: 'BUTTON', positions: 'SERVO', slider: 'PWM', syringe: 'SYRINGE', heater: 'HEATER', display: 'SENSOR' };   /* Vorgabe je Art */
 const CTL_ROLES = ['', 'flow', 'pumpA', 'pumpB', 'inj'];   /* Rolle eines Bauteils im Methodenlauf */
-const CTL_FW_KINDS = ['SWITCH', 'BUTTON', 'SERVO', 'PWM', 'MOTOR', 'STEPPER', 'SYRINGE', 'HEATER', 'SENSOR', 'LIMIT'];
+const CTL_FW_KINDS = ['SWITCH', 'BUTTON', 'SERVO', 'PWM', 'MOTOR', 'STEPPER', 'SYRINGE', 'HEATER', 'SENSOR', 'LIMIT', 'NONE'];   /* NONE: Wert kommt vom Gerät, keine Anmeldung */
 const CTL_KINDS = Object.keys(CTL_FW);
 
 const CTL_LIB = [
@@ -29,6 +29,9 @@ const CTL_LIB = [
   { lib: 'pwm', group: 'heat', de: 'Leistungsausgang (PWM)', en: 'Power output (PWM)', kind: 'slider', key: 'pwm', min: 0, max: 100, step: 1, unit: '%', safe: '0', stop: true, pin: '5', fw: 'PWM' },
   { lib: 'uvled', group: 'det', de: 'UV-LED', en: 'UV LED', kind: 'switch', key: 'led', cmd: 'LED {v}', safe: '', pin: '3' },
   { lib: 'zero', group: 'det', de: 'Autozero', en: 'Autozero', kind: 'button', key: 'zero', cmd: 'ZERO' },
+  { lib: 'dark', group: 'det', de: 'Dunkelwert (bei ausgeschalteter LED)', en: 'Dark value (with LED off)', kind: 'button', key: 'dunkel', cmd: 'DARK' },
+  { lib: 'uv_i', group: 'sens', de: 'Messdiode (Spannung)', en: 'Measuring diode (voltage)', kind: 'display', key: 'messdiode', unit: 'V', source: 'V:uv_i', dec: 4, fw: 'NONE', pin: 'ADS A0' },
+  { lib: 'uv_r', group: 'sens', de: 'Referenzdiode (Spannung)', en: 'Reference diode (voltage)', kind: 'display', key: 'refdiode', unit: 'V', source: 'V:uv_r', dec: 4, fw: 'NONE', pin: 'ADS A1' },
   { lib: 'uv', group: 'sens', de: 'UV-Signal (Extinktion)', en: 'UV signal (absorbance)', kind: 'display', key: 'uv', unit: 'mAU', source: 'D:uv', dec: 2 },
   { lib: 'press', group: 'sens', de: 'Drucksensor (analog 0,5–4,5 V)', en: 'Pressure sensor (analog 0.5–4.5 V)', kind: 'display', key: 'druck', unit: 'bar', source: 'V:druck', dec: 2, pin: 'A2', fw: 'SENSOR', scale: 3, offset: -1.5 },
   { lib: 'ds18', group: 'sens', de: 'Temperaturfühler DS18B20', en: 'Temperature sensor DS18B20', kind: 'display', key: 'temp', unit: '°C', source: 'D:temp', dec: 1, pin: '2' },
@@ -57,7 +60,7 @@ function partCommand(p, v) {
 /* Anmeldung aller Bauteile ohne eigenen Befehl beim Gerät. Endschalter kommen zuletzt, weil sie sich auf andere Bauteile beziehen. */
 function configCommands(parts) {
   const fwOf = p => p.fw || CTL_FW[p.kind];
-  return parts.filter(p => !p.cmd && p.kind !== 'symbol' && !(p.kind === 'display' && String(p.source || '').startsWith('D:')))
+  return parts.filter(p => !p.cmd && p.kind !== 'symbol' && p.fw !== 'NONE' && !(p.kind === 'display' && String(p.source || '').startsWith('D:')))
     .slice().sort((x, y) => (fwOf(x) === 'LIMIT') - (fwOf(y) === 'LIMIT'))
     .map(p => { const fw = fwOf(p);
       return 'CFG ' + p.key + ' ' + fw + ' ' + (String(p.pin || '').replace(/\s+/g, '') || '-') +

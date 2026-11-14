@@ -251,3 +251,11 @@ dialog.narrow { width: 380px; }
 .flow { touch-action: pan-x pan-y; }
 details.manage { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); } details.manage summary { cursor: pointer; color: var(--muted); font-size: 13px; } details.manage .toolbar { margin-top: 8px; }
 @media (max-width: 700px) { .btn.tool { padding: 8px 10px; font-size: 13px; flex: 1 1 auto; } .tools { flex: 1 1 100%; } .zoomgrp { margin-left: auto; } }
+
+/* Betrieb mit dem echten Gerät: Verbindungs-Karte, deutlicher Hinweis bei laufendem Simulator */
+#simBanner { background: var(--warn); color: #fff; padding: 6px 16px; font-size: 13px; font-weight: 500; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+#simBanner .btn { background: transparent; color: #fff; border-color: #fff; }
+.pill.sim { border-color: var(--warn); color: var(--warn); } .pill.sim::before { background: var(--warn); }
+.card.connect { border-left: 4px solid var(--accent); } .card.connect .btn { min-height: 44px; }
+.hint.crit { color: var(--crit); } .hint.crit:empty { display: none; }
+.linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--muted); text-decoration: underline; cursor: pointer; }

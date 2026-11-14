@@ -46,7 +46,7 @@ function createWindow() {
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
-  win.loadFile(path.join(__dirname, 'app', 'index.html'));
+  win.loadFile(path.join(__dirname, 'app', 'index.html'), process.env.CHROMALOG_SMOKE ? { query: { demo: '1' } } : {});   /* der Selbsttest läuft im Vorführbetrieb mit Simulator */
   win.on('closed', () => { win = null; });
   /* Selbsttest für den automatischen Bau: CHROMALOG_SMOKE=1 startet, prüft die App und beendet sich */
   if (process.env.CHROMALOG_SMOKE) {

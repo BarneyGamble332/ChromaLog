@@ -2,14 +2,17 @@
 
 `chromalog_uno/chromalog_uno.ino` ist der allgemeine Sketch für ChromaLog. Er enthält den UV-Detektor aus Stufe 1 und den Baukasten für die Steuerung: Bauteile werden von der App angemeldet (`CFG`) und gestellt (`SET`), der Sketch muss dafür nicht geändert werden.
 
-**Stand: Version 0.2 – übersetzt fehlerfrei, und die Logik ist am PC geprüft (48 Prüfungen, `tests/firmware`). Auf einem Arduino ist der Sketch noch nie gelaufen.** Vor dem ersten Einsatz jedes Bauteil einzeln und ohne Last prüfen.
+**Stand: Version 0.3 – übersetzt fehlerfrei, und die Logik ist am PC geprüft (51 Prüfungen, `tests/firmware`). Auf einem Arduino ist der Sketch noch nie gelaufen.** Vor dem ersten Einsatz jedes Bauteil einzeln und ohne Last prüfen.
 
 ## Aufspielen
 1. Arduino IDE öffnen, im Bibliotheksverwalter installieren: **Servo**, **OneWire**, **DallasTemperature**, **Adafruit ADS1X15** (die Abfrage nach „Adafruit BusIO“ bestätigen).
 2. Ordner `chromalog_uno` öffnen, Board „Arduino Uno“ und den Anschluss wählen, hochladen.
-3. In ChromaLog unter „System“ den Anschluss „USB (seriell)“ mit 115200 Baud verbinden. Nach dem Verbinden startet der Uno neu und meldet `READY ChromaLog-Uno 0.2`; die App meldet dann alle Bauteile des aktuellen Aufbaus an und schaltet die Verbindungsüberwachung ein.
+3. In ChromaLog unter „System“ den Anschluss „USB (seriell)“ mit 115200 Baud verbinden. Nach dem Verbinden startet der Uno neu und meldet `READY ChromaLog-Uno 0.3`; die App meldet dann alle Bauteile des aktuellen Aufbaus an und schaltet die Verbindungsüberwachung ein.
 
 Der serielle Monitor der Arduino IDE muss geschlossen sein, sonst ist der Anschluss belegt.
+
+## UV-Detektor
+Mit angeschlossenem ADS1115 sendet der Sketch die Extinktion in der Datenzeile und einmal je Sekunde die Spannungen an Mess- und Referenzdiode (`V,uv_i,…` und `V,uv_r,…`). Über 4 V warnt er vor Übersteuerung. Bei ausgeschalteter LED bleibt das Extinktionsfeld leer. Schritt für Schritt: `docs/INBETRIEBNAHME-STUFE1.md`.
 
 ## Anschlüsse
 | Pin | Verwendung |
@@ -55,6 +58,6 @@ Der Kontakt schaltet gegen Masse (interner Pull-up). Ein abgerissenes Kabel wird
 - **Noch nicht enthalten:** ein Drehventil mit Schrittmotor und Referenzfahrt.
 
 ## Prüfen ohne Arduino IDE
-`tools/build_firmware.sh <Ordner mit ArduinoCore-avr und den Bibliotheken>` übersetzt den Sketch mit avr-gcc. Letzter Stand: 21 162 Byte Programm von 32 256, 1 011 Byte fester Arbeitsspeicher von 2 048.
+`tools/build_firmware.sh <Ordner mit ArduinoCore-avr und den Bibliotheken>` übersetzt den Sketch mit avr-gcc. Letzter Stand: 21 500 Byte Programm von 32 256, 1 020 Byte fester Arbeitsspeicher von 2 048.
 
 `tests/firmware/run.sh` prüft die Logik des Sketches am PC mit einer nachgebildeten Arduino-Umgebung (braucht nur g++).

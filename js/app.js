@@ -4,7 +4,9 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const CH = ['uv', 'cond', 'press', 'temp', 'flow', 'b'];
-const APP_VERSION = '0.9';
+const APP_VERSION = '0.10';
+/* Vorführbetrieb: die Adresse mit ?demo=1 startet mit Simulator und Beispiel-Lauf. Ohne das startet die App für das echte Gerät. */
+const DEMO = typeof location !== 'undefined' && /[?&]demo(=|&|$)/.test(location.search);
 
 const DEFAULT_METHODS = [
   { id: 'm-screening', name: 'Abwasser-Screening (Gradient)', column: 'C18, 100 × 4,6 mm', solventA: 'Wasser + 0,1 % Ameisensäure', solventB: 'Acetonitril',
@@ -17,6 +19,9 @@ const DEFAULT_METHODS = [
     gradient: [{ t: 0, b: 20 }, { t: 8, b: 20 }], events: [],
     compounds: [{ name: 'Koffein', rt: 2.30, tol: 0.3 }, { name: 'Benzotriazol', rt: 5.28, tol: 0.4 }] }
 ];
+
+const DETECTOR_METHOD = { id: 'm-detektor', name: 'Detektortest (10 min, ohne Pumpe)', column: '', solventA: '', solventB: '', flow: 0, runtime: 10, rate: 1, pmax: 10, autozero: false,
+  gradient: [{ t: 0, b: 0 }, { t: 10, b: 0 }], events: [], compounds: [] };
 
 const S = {
   methods: [], runs: [], auditLog: [], dev: null, last: null, stage1: false, led: true,
@@ -51,22 +56,24 @@ function cmd(c) { if (!S.dev) return; S.dev.send(c); log('> ' + c); }
 function mcmd(name, value) {
   methodCommands(CTL.layouts.length ? ctlL().parts : [], S.mstate, name, value).forEach(o => { if (o.key) CTL.values[o.key] = o.value; cmd(o.cmd); });
 }
-async function connectDevice(kind) {
+function connHint(text) { $('#connHint').textContent = text; $('#connHint2').textContent = text; }
+async function connectDevice(kind, port) {
   if (S.phase !== 'idle') return;
-  const native = isNativeApp();
-  if (kind === 'usb' && !native && !('serial' in navigator)) { $('#connHint').textContent = t('usb_unsupported'); return; }
-  if (kind === 'ble' && !native && !('bluetooth' in navigator)) { $('#connHint').textContent = t('ble_unsupported'); return; }
+  const native = isNativeApp(); connHint('');
+  if (kind === 'usb' && !native && !('serial' in navigator)) { connHint(t('usb_unsupported')); return; }
+  if (kind === 'ble' && !native && !('bluetooth' in navigator)) { connHint(t('ble_unsupported')); return; }
   await disconnectDevice();
   const dev = kind === 'usb' ? (native ? new AndroidSerialDevice(+$('#selBaud').value) : new SerialDevice(+$('#selBaud').value)) : kind === 'ble' ? (native ? new AndroidBleDevice() : new BleDevice()) : new SimDevice();
   dev.onLine = onLine;
   dev.onClose = () => { if (S.dev === dev) { S.dev = null; S.last = null; if (S.phase !== 'idle') finishRun(true); toast(t('conn_lost'), true); logAudit('disconnect', 'lost'); S.dirty = true; } };
-  try { await dev.connect(); }
+  try { await dev.connect(port); }
   catch (e) {
     if (e && e.name === 'NotFoundError') return;
-    $('#connHint').textContent = (e && e.name === 'NoDeviceError') ? t('usb_nodevice') : (e && e.name === 'SecurityError') ? t(kind === 'ble' ? 'ble_blocked' : 'usb_blocked') : t('conn_failed') + ' ' + (e && e.message || '');
+    connHint((e && e.name === 'NoDeviceError') ? t('usb_nodevice') : (e && e.name === 'SecurityError') ? t(kind === 'ble' ? 'ble_blocked' : 'usb_blocked') : t('conn_failed') + ' ' + (e && e.message || ''));
     return;
   }
-  S.dev = dev; S.stage1 = false; S.last = null; CTL.fbDone = false; $('#connHint').textContent = '';
+  S.dev = dev; S.stage1 = false; S.last = null; CTL.fbDone = false; connHint('');
+  $('#selTr').value = kind; try { localStorage.setItem('chromalog.transport', kind); } catch (e) {}
   CH.concat('t').forEach(k => { if (S.mon[k]) S.mon[k].length = 0; });
   if (kind === 'sim') dev.speed = +$('#selSpeed').value;
   cmd('RATE ' + curMethod().rate); ctlConfigure(true); if (kind !== 'sim') cmd('WATCHDOG 10');
@@ -84,6 +91,7 @@ function onLine(line) {
   if (s.kind === 'val') { ctlValue(s.key, s.value); S.dirty = true; return; }
   if (s.kind === 'stage1' && !S.stage1) { S.stage1 = true; toast(t('t_stage1')); }
   if (s.uv != null) s.uv *= 1000;                       /* intern in mAU */
+  if (!S.last && s.press == null && s.temp != null) { $('#pane2Sel').value = 'temp'; if (s.b == null) $('#showGrad').checked = false; }   /* Gerät ohne Drucksensor und Gradient: Temperatur zeigen */
   S.last = s;
   const m = S.mon; m.t.push(s.t); m.uv.push(s.uv); m.cond.push(s.cond); m.press.push(s.press); m.temp.push(s.temp); m.b.push(s.b);
   if (m.t.length > 9000) Object.keys(m).forEach(k => m[k].splice(0, 1500));
@@ -168,6 +176,8 @@ const yLim = (view, pane, base) => { const v = !view.auto && view.y && view.y[pa
 /* ---------- Messen: Anzeige ---------- */
 function setPill(e, cls, text) { e.className = 'pill ' + cls; e.textContent = text; }
 function renderStatus() {
+  const simOn = !!S.dev && S.dev.kind === 'sim';
+  $('#connCard').hidden = !!S.dev; $('#simBanner').hidden = !simOn; $('#pillConn').classList.toggle('sim', simOn);
   const k = S.dev ? S.dev.kind : null;
   setPill($('#pillConn'), k ? 'ok' : '', k === 'sim' ? t('conn_sim') : k === 'usb' ? t('conn_usb') : k === 'ble' ? t('conn_ble') : t('conn_none'));
   setPill($('#pillRun'), S.phase === 'run' ? 'run' : S.phase === 'equil' ? 'warn' : '', t(S.phase === 'run' ? 'ph_run' : S.phase === 'equil' ? 'ph_equil' : 'ph_idle'));
@@ -272,6 +282,7 @@ async function saveMethod() {
 
 /* ---------- Läufe ---------- */
 function renderRuns() {
+  $('#runSimDel').hidden = !S.runs.some(r => r.simulated);
   if (!S.runs.length) { $('#runTable').innerHTML = '<p class="hint">' + t('r_none') + '</p>'; return; }
   $('#runTable').innerHTML = '<table><tr><th>' + t('r_name') + '</th><th>' + t('type') + '</th><th>' + t('r_date') + '</th><th>' + t('method') + '</th><th class="n">' + t('r_dur') + '</th><th class="n">' + t('r_peaks') + '</th><th></th></tr>' +
     S.runs.map(r => '<tr><td>' + esc(r.name) + (r.example ? '<span class="badge">' + t('r_example') + '</span>' : r.simulated ? '<span class="badge">' + t('r_sim') + '</span>' : '') + (r.aborted ? '<span class="badge crit">' + t('r_aborted') + '</span>' : '') + (r.hashMismatch ? '<span class="badge crit">' + t('hash_badge') + '</span>' : '') + '</td>' +
@@ -346,9 +357,9 @@ function renderAnalysis() {
     res.peaks.map((p, i) => '<tr>' + n(i + 1) + '<td>' + (p.name ? esc(p.name) : '<span class="hint">' + t('unknown') + '</span>') + (p.manual ? '<span class="badge">' + t('a_man') + '</span>' : '') + '</td>' + n(concCell(r, p)) + n(fmt(p.rt, 3)) + n(fmt(p.area, 1)) + n(fmt(p.areaPct, 1)) + n(fmt(p.height, 2)) +
       n(fmt(p.w50, 1)) + n(fmt(p.plates, 0)) + n(fmt(p.tailing, 2)) + n(fmt(p.rs, 1)) + n(fmt(p.sn, 0)) + '<td><button type="button" class="btn small" data-rmpk="' + i + '" title="' + t('a_remove') + '" aria-label="' + t('a_remove') + '">✕</button></td></tr>').join('') + '</table>' +
     (res.peaks.some(p => { const c = concOf(r, p); return c && c.out; }) ? '<p class="hint">' + t('c_outside') + '</p>' : '');
-  const row = (k, v, mono) => '<dt>' + t(k) + '</dt><dd' + (mono ? ' class="mono"' : '') + '>' + v + '</dd>';
+  const row = (k, v, mono) => '<dt>' + t(k) + '</dt><dd' + (mono ? ' class="mono"' : '') + '>' + v + '</dd>', bs = baselineStats(r.data.t, r.data.uv);
   $('#aMeta').innerHTML = row('sample', esc(r.name) + ' (' + t('ty_' + r.type) + (r.conc != null ? ', ' + fmt(r.conc, 1) + ' mg/l' : '') + ')') + row('method', esc(r.method.name)) + row('a_started', esc(dateStr(r.startedAt))) +
-    (r.site ? row('site', esc(r.site)) : '') + row('vol', fmt(r.vol, 0) + ' µl') + row('a_points', fmt(r.data.t.length, 0)) + row('a_noise', fmt(res.noise, 3) + ' mAU') + row('a_hash', (r.hash ? r.hash.slice(0, 16) + '… ' : '') + '<span style="font-family:var(--f-body);color:var(--' + (S.aHash === 'bad' ? 'crit' : S.aHash === 'ok' ? 'ok' : 'muted') + ')">' + t('hash_' + S.aHash) + '</span>', true);
+    (r.site ? row('site', esc(r.site)) : '') + row('vol', fmt(r.vol, 0) + ' µl') + row('a_points', fmt(r.data.t.length, 0)) + row('a_noise', fmt(res.noise, 3) + ' mAU') + (bs ? row('a_mean', fmt(bs.mean, 3) + ' mAU') + row('a_drift', fmt(bs.drift10, 3) + ' mAU') + row('a_span', fmt(bs.span, 3) + ' mAU') : '') + row('a_hash', (r.hash ? r.hash.slice(0, 16) + '… ' : '') + '<span style="font-family:var(--f-body);color:var(--' + (S.aHash === 'bad' ? 'crit' : S.aHash === 'ok' ? 'ok' : 'muted') + ')">' + t('hash_' + S.aHash) + '</span>', true);
   $('#aManual').classList.toggle('on', S.aManualMode); $('#aHint').textContent = t(S.aManualMode ? 'a_manual_hint' : 'hint_zoom');
   $('#aClear').disabled = !(S.aEdits.manual.length || S.aEdits.removed.length);
   $('#aCompare').innerHTML = S.runs.filter(q => q.id !== r.id).slice(0, 30).map(q => { const k = S.aOverlay.indexOf(q.id);
@@ -419,7 +430,7 @@ function reportBody(r, res) {
     Object.keys(cal.compounds).map(k => { const c = cal.compounds[k]; return '<tr><td>' + esc(k) + '</td>' + n(c.n) + n(fmt(c.slope, 2)) + n(fmt(c.intercept, 1)) + n(fmt(c.r2, 4)) + n(c.min == null ? '–' : fmt(c.min, 1) + ' – ' + fmt(c.max, 1)) + '</tr>'; }).join('') +
     '</table></div><p><b>' + t('c_savedat') + ':</b> ' + esc(dateStr(cal.at)) + (cal.zero ? ' · ' + t('c_zero') : '') + '</p>');
   h += '<h2>' + t('rep_integ') + '</h2><div class="kv">' + kv(t('a_sn'), fmt(p.sn, 1)) + kv(t('a_minw'), fmt(p.minWidth, 1)) + kv(t('a_base'), fmt(p.baseWin, 1)) + kv(t('a_smooth'), fmt(p.smooth, 1)) +
-    kv(t('a_noise'), fmt(res.noise, 3) + ' mAU') + kv(t('a_points'), fmt(r.data.t.length, 0)) + kv(t('rep_manual'), S.aEdits.manual.length) + kv(t('rep_removed'), S.aEdits.removed.length) +
+    kv(t('a_noise'), fmt(res.noise, 3) + ' mAU') + (function () { const b2 = baselineStats(r.data.t, r.data.uv); return b2 ? kv(t('a_mean'), fmt(b2.mean, 3) + ' mAU') + kv(t('a_drift'), fmt(b2.drift10, 3) + ' mAU') + kv(t('a_span'), fmt(b2.span, 3) + ' mAU') : ''; })() + kv(t('a_points'), fmt(r.data.t.length, 0)) + kv(t('rep_manual'), S.aEdits.manual.length) + kv(t('rep_removed'), S.aEdits.removed.length) +
     kv(t('rep_saved'), esc(dateStr(r.analysis && r.analysis.at))) + kv(t('rep_version'), 'ChromaLog ' + APP_VERSION) + '</div>' +
     '<p><b>' + t('a_hash') + ' (SHA-256):</b> <span class="mono">' + esc(r.hash || '–') + '</span> – ' + t('hash_' + S.aHash) + '</p>' + (S.aHash === 'bad' ? '<div class="warn">' + t('t_hashbad') + '</div>' : '');
   h += '<div class="sign"><div>' + t('rep_by') + '</div><div>' + t('rep_date') + '</div><div>' + t('rep_sig') + '</div></div>' +
@@ -504,7 +515,7 @@ function renderCal() {
   $('#cSaved').textContent = m.calibration ? t('c_savedat') + ' ' + dateStr(m.calibration.at) : t('c_notsaved');
   $('#cSave').disabled = !names.some(k => res.compounds[k].slope > 0);
   $('#cRuns').innerHTML = !all.length
-    ? '<p class="hint">' + t('c_none') + '</p><div class="row"><button type="button" class="btn" id="cExample">' + t('c_example') + '</button></div>'
+    ? '<p class="hint">' + t('c_none') + '</p>' + (DEMO || (S.dev && S.dev.kind === 'sim') ? '<div class="row"><button type="button" class="btn" id="cExample">' + t('c_example') + '</button></div>' : '')
     : '<table><tr><th>' + t('c_use') + '</th><th>' + t('r_name') + '</th><th class="n">' + t('conc') + '</th><th>' + t('r_date') + '</th><th class="n">' + t('r_peaks') + '</th></tr>' +
       all.map(r => '<tr><td><input type="checkbox" data-run="' + r.id + '"' + (S.cal.excluded[r.id] ? '' : ' checked') + ' aria-label="' + esc(r.name) + '"></td><td>' + esc(r.name) + (r.simulated ? '<span class="badge">' + t('r_sim') + '</span>' : '') + '</td><td class="n">' + fmt(r.conc, 2) +
         '</td><td>' + esc(dateStr(r.startedAt)) + '</td><td class="n">' + r.analysis.peaks.filter(p => p.name).length + '</td></tr>').join('') + '</table>';
@@ -599,6 +610,14 @@ function bind() {
   };
   $('#mEditor').addEventListener('input', editorEvent); $('#mEditor').addEventListener('change', editorEvent); $('#mEditor').addEventListener('click', editorClick);
   $('#runTable').onclick = runsClick;
+  $('#runSimDel').onclick = async () => {
+    const sim = S.runs.filter(r => r.simulated); if (!sim.length || !(await confirmDlg(t('r_simdel_q').replace('{n}', sim.length)))) return;
+    for (const r of sim) await Store.del('runs', r.id);
+    S.runs = S.runs.filter(r => !r.simulated); if (S.aRun && S.aRun.simulated) { S.aRun = null; S.aRes = null; }
+    await logAudit('simulated runs deleted', String(sim.length)); renderRuns(); fillRunSelect(); renderAnalysis();
+  };
+  $('#btnQuickUsb').onclick = () => connectDevice('usb'); $('#btnQuickBle').onclick = () => connectDevice('ble'); $('#btnQuickSim').onclick = () => connectDevice('sim');
+  $('#simOff').onclick = disconnectDevice;
   $('#runFile').onchange = e => { const f = e.target.files[0]; if (f) importRun(f); e.target.value = ''; };
   $('#aSel').onchange = e => openAnalysis(e.target.value);
   $('#aReint').onclick = integrate; $('#aSave').onclick = saveAnalysis;
@@ -653,6 +672,10 @@ async function init() {
   await Store.open();
   S.methods = await Store.all('methods');
   if (!S.methods.length) { S.methods = clone(DEFAULT_METHODS); for (const m of S.methods) await Store.put('methods', m); }
+  if (!(await Store.get('kv', 'migr-detektortest'))) {       /* einmalig: Methode für den Test des Detektors ohne Pumpe */
+    if (!S.methods.some(m => m.id === 'm-detektor')) { const m = clone(DETECTOR_METHOD); if (DEMO) S.methods.push(m); else S.methods.unshift(m); await Store.put('methods', m); }
+    await Store.put('kv', { id: 'migr-detektortest', at: new Date().toISOString() });
+  }
   S.runs = (await Store.all('runs')).sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
   S.auditLog = (await Store.all('audit')).sort((a, b) => b.ts.localeCompare(a.ts));
   plotLive = new Plot($('#cvLive'), (a, b, y) => { S.view = newView(S.view, a, b, y); S.dirty = true; });
@@ -662,7 +685,7 @@ async function init() {
   const sq = await Store.get('kv', 'sequence');
   if (sq && Array.isArray(sq.rows)) { S.seq.rows = sq.rows; S.seq.confirm = sq.confirm !== false; S.seq.rows.forEach(r => { if (r.status === 'running') r.status = 'aborted'; }); }
   fillMethodSelect(); bind();
-  if (!S.runs.length) {
+  if (DEMO && !S.runs.length) {
     const m = clone(S.methods[0]), d = simulateRun(m, { type: 'sample' });
     d.uv = d.uv.map(v => +(v * 1000).toFixed(4));
     await storeRun({ id: uid(), name: 'Kläranlagenablauf, dotiert', type: 'sample', conc: null, vol: 20, site: '', methodId: m.id, method: m, device: 'sim', simulated: true, example: true, aborted: false, startedAt: new Date().toISOString(), data: d }, 'example run created');
@@ -671,6 +694,13 @@ async function init() {
   setLang(LANG); route(); requestAnimationFrame(frame);
   if (!Store.persistent) toast(t('t_storage'), true);
   if (isNativeApp()) { document.documentElement.classList.add('native'); $('#rPrint').hidden = true; capP('KeepAwake', 'keepAwake').catch(() => {}); }   /* Android-App: Bildschirm bleibt an, sonst hält Android die Aufzeichnung an */
-  await connectDevice('sim');
+  let last = null; try { last = localStorage.getItem('chromalog.transport'); } catch (e) {}
+  if (last === 'usb' || last === 'ble') $('#selTr').value = last; else $('#selTr').value = DEMO ? 'sim' : 'usb';
+  if (DEMO) await connectDevice('sim');
+  else if (last === 'usb' && !isNativeApp() && navigator.serial && navigator.serial.getPorts) {
+    /* Der Browser merkt sich einen freigegebenen Anschluss: dann gleich wieder verbinden */
+    try { const ports = await navigator.serial.getPorts(); if (ports.length === 1) await connectDevice('usb', ports[0]); } catch (e) {}
+  }
+  S.dirty = true;
 }
 init();

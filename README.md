@@ -2,7 +2,7 @@
 
 Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft als Web-App im Browser (Linux-PC, Android) und später als Android-App.
 
-## Stand Version 0.9
+## Stand Version 0.10
 - Live-Chromatogramm in Echtzeit: UV 275 nm, dazu Druck, Leitfähigkeit, Temperatur und Gradient
 - Gerätesteuerung: Lauf mit Equilibrieren, Autozero, Injektion, Gradient-Tabelle, Ventil-Ereignissen und Druckabschaltung; Handsteuerung
 - Anschlüsse: Simulator (ohne Hardware), USB seriell, Bluetooth Low Energy (Nordic UART oder HM-10); WLAN ist vorbereitet
@@ -20,6 +20,11 @@ Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft a
 - Methodenlauf am Prototyp: Bauteile mit Rolle (Pumpe A/B, Injektionsventil) werden von der Methode gefahren
 - Nachvollziehbarkeit: Prüfsumme wird beim Öffnen und Importieren nachgerechnet; Rohdaten mit SHA-256-Prüfsumme, Protokoll aller Aktionen
 - Deutsch und Englisch
+
+## Erste Schritte mit dem Arduino
+`docs/INBETRIEBNAHME-STUFE1.md` führt vom Aufspielen des Sketches bis zur ersten Stabilitätsmessung mit dem UV-Detektor.
+
+Die App startet ohne Simulator. Zum Ausprobieren ohne Gerät: im Reiter „Messen“ „Simulator starten“ wählen oder die Adresse mit `?demo=1` öffnen.
 
 ## Installieren
 Drei Wege: im Browser, als Linux-Programm (AppImage, deb) und als Android-App (APK). Fertige Pakete unter [Releases → „Aktueller Stand“](https://github.com/BarneyGamble332/ChromaLog/releases/tag/aktuell), Anleitung in `docs/INSTALLATION.md`.

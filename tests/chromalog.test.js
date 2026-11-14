@@ -6,7 +6,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { analyze, linFit, quantify, ANALYSIS_DEFAULTS } = require('../js/analysis.js');
+const { analyze, linFit, quantify, ANALYSIS_DEFAULTS, baselineStats } = require('../js/analysis.js');
 const { gradAt, parseLine, simulateRun, SimDevice, bytesToHex, hexToBytes, lineSplitter } = require('../js/device.js');
 const C = require('../js/control.js');
 const { sha256 } = require('../js/store.js');
@@ -291,4 +291,14 @@ test('A-76 Aufräumen: Ketten von links nach rechts, Zeilenumbruch, unverbundene
   assert.equal(C.linkPath({ x: 0, y: 0, w: 56, h: 56 }, { x: 150, y: 0, w: 56, h: 56 }), 'M56 28 L 150 28', 'gleiche Höhe: gerade Leitung');
   assert.equal(C.linkPath({ x: 0, y: 0, w: 56, h: 56 }, { x: 150, y: 40, w: 56, h: 56 }), 'M56 28 L 103 28 L 103 68 L 150 68', 'versetzt: rechtwinklig geführt');
   assert.deepEqual(C.configCommands([{ key: 'saeule', kind: 'symbol' }]), [], 'Symbole ohne Funktion werden nicht angemeldet'); assert.deepEqual(C.safeCommands([{ key: 'saeule', kind: 'symbol', safe: '0' }]), []);
+});
+
+test('A-77 Basislinie: Drift, Rauschen und Spanne (für den Detektortest)', () => {
+  const g = gaussFrom(seed(7)), t = [], y = [];
+  for (let i = 0; i <= 600; i++) { t.push(i / 60); y.push(1.0 + 0.2 * (i / 600) + 0.05 * g()); }        /* 10 min, Drift 0,2 mAU, Rauschen 0,05 mAU */
+  const b = baselineStats(t, y);
+  near(b.drift10, 0.2, 0.08, 'Drift je 10 min'); near(b.noise, 0.05, 0.08, 'Rauschen'); near(b.minutes, 10, 1e-9, 'Dauer'); assert.ok(b.span > 0.2 && b.span < 0.6, 'Spanne ' + b.span);
+  const flat = baselineStats([0, 1, 2, 3], [2, 2, null, 2]); assert.equal(flat.n, 3); near(flat.mean, 2, 1e-12, 'Mittelwert'); assert.ok(Math.abs(flat.drift10) < 1e-12 && flat.noise < 1e-12, 'ohne Drift und Rauschen');
+  assert.equal(baselineStats([0, 1], [1, 2]), null, 'zu wenige Punkte');
+  assert.deepEqual(C.configCommands([{ key: 'messdiode', kind: 'display', source: 'V:uv_i', fw: 'NONE' }]), [], 'vom Gerät gemeldete Werte werden nicht angemeldet');
 });

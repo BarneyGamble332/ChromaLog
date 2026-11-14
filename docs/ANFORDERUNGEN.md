@@ -1,6 +1,6 @@
 # ChromaLog – Anforderungen und Nachweise
 
-Stand: 12.11.2026 · gilt für Version 0.9
+Stand: 12.11.2026 · gilt für Version 0.10
 
 Dieses Dokument hält fest, was die Software können muss, und womit jede Anforderung nachgewiesen ist. Es ist die Grundlage für eine spätere Validierung. Bei jeder Änderung an der Software wird es mitgepflegt.
 
@@ -96,6 +96,15 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 | A-71 | Android-App: lässt sich bauen und installieren; Bildschirm bleibt an; Dateien werden in „Dokumente/ChromaLog“ gespeichert, sonst über „Teilen“. | Bau bei jedem Push; Verhalten automatisch im Browser mit nachgebildeter Plugin-Brücke (Tests A-06, A-07) | gebaut, auf keinem Handy getestet |
 | A-72 | Eine neue APK lässt sich über die alte installieren, die Daten bleiben erhalten (gleiche Signatur, steigender Versionscode). | – | offen |
 
+## 7 Betrieb mit dem echten Gerät
+| Nr. | Anforderung | Nachweis | Status |
+| --- | --- | --- | --- |
+| A-77 | Zu jedem Lauf stehen Mittelwert, Rauschen, Drift je 10 min und Spanne der Basislinie bei den Laufdaten und im Bericht. | Automatisch | erfüllt |
+| A-78 | Die App startet ohne Simulator und ohne Beispieldaten und bietet das Verbinden mit dem Gerät an. Der Simulator läuft nur auf ausdrücklichen Wunsch (oder mit `?demo=1` in der Adresse), ist dann deutlich gekennzeichnet und startet nicht von selbst wieder. Simulierte Läufe lassen sich gesammelt löschen. | Automatisch im Browser | erfüllt |
+| A-79 | Über USB verbunden zeigt die App die Werte des Sketches (Extinktion, Temperatur, Diodenspannungen), bedient LED, Autozero und Dunkelwert, zeichnet einen Lauf auf, der nicht als simuliert gilt, und verbindet sich nach dem Neustart von selbst wieder. | Automatisch im Browser mit nachgebildetem seriellen Anschluss | am Gerät ungetestet |
+| A-80 | Der Sketch meldet die Spannungen an Mess- und Referenzdiode und warnt bei Übersteuerung über 4 V. | Logiktest am PC (F-63) | am Gerät ungetestet |
+| A-81 | Kalibriergerade aus Küvetten-Messungen (Mittelwert gegen Konzentration) mit Nachweisgrenze für den statischen Detektortest. | – | nicht umgesetzt |
+
 ## Bekannte Grenzen
 - Die Browser-Tests decken die wichtigsten Abläufe ab, nicht jede Schaltfläche. Die Bedienung am Handy ist nicht getestet.
 - Referenzdaten sind berechnet. Ein Vergleich mit einer etablierten Chromatographie-Software an echten Messdaten steht aus.
@@ -112,3 +121,4 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 | 13.11.2026 | 0.7 | Linux-Programm und Android-App (A-69 bis A-72); A-06 und A-07 um die neuen Wege erweitert. Insgesamt 54 Anforderungen. |
 | 14.11.2026 | 0.8 | Bauteile im Reiter „Messen“ (A-73), Bedienfenster im Fließbild (A-74), Sperre im Lauf nur noch für von der Methode gefahrene Bauteile (A-60). Insgesamt 56 Anforderungen. |
 | 14.11.2026 | 0.9 | Fließbild mit Symbolen statt Kacheln, Werkzeuge für die Bedienung am Handy, Symbole ohne Funktion, Zoom, „Aufräumen“ (A-75, A-76; A-56, A-58, A-74 angepasst). Insgesamt 58 Anforderungen. |
+| 14.11.2026 | 0.10 | Betrieb ohne Simulation (A-78), Weg über USB geprüft mit nachgebildetem Anschluss (A-79), Kennzahlen der Basislinie (A-77), Diodenspannungen im Sketch 0.3 (A-80). Anleitung `docs/INBETRIEBNAHME-STUFE1.md`. Insgesamt 63 Anforderungen. |

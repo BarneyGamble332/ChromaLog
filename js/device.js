@@ -171,8 +171,8 @@ function simulateRun(method, sample) {
 
 class SerialDevice {
   constructor(baud) { this.kind = 'usb'; this.baud = baud || 115200; this.onLine = () => {}; this.onClose = () => {}; }
-  async connect() {
-    this.port = await navigator.serial.requestPort();
+  async connect(port) {
+    this.port = port || await navigator.serial.requestPort();     /* port: schon freigegebener Anschluss (automatisches Wiederverbinden) */
     await this.port.open({ baudRate: this.baud });
     this.writer = this.port.writable.getWriter();
     this.alive = true; this.readLoop();

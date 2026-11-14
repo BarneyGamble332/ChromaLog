@@ -1,5 +1,5 @@
 /*
- * ChromaLog – allgemeiner Sketch für den Arduino Uno          Version 0.2
+ * ChromaLog – allgemeiner Sketch für den Arduino Uno          Version 0.3
  *
  * Der Sketch macht zwei Dinge:
  *  1. UV-Detektor wie in Stufe 1: ADS1115 (A0 = Messdiode, A1 = Referenzdiode),
@@ -41,6 +41,7 @@
  *   READY ChromaLog-Uno <version>                  nach dem Start
  *   D,<t_s>,<extinktion_AU>,,,<temp_C>,,,          Datenzeile
  *   V,<name>,<wert>                                Füllstand, Ist-Temperatur, Sensor, Endschalter (1 = betätigt)
+ *   V,uv_i,<volt> und V,uv_r,<volt>                Spannung an Mess- und Referenzdiode (einmal je Sekunde, zum Einrichten)
  *   E,STOP,<name>                                  Lecksensor hat alles gestoppt
  *   E,LIMIT,<name>                                 Endschalter hat eine Pumpe angehalten
  *   # Text                                         Hinweise und Fehler
@@ -55,7 +56,7 @@
 #include <DallasTemperature.h>
 #include <Adafruit_ADS1X15.h>
 
-#define FW_VERSION "0.2"
+#define FW_VERSION "0.3"
 const uint8_t PIN_LED = 3;
 const uint8_t PIN_DS18B20 = 2;
 const float HEATER_MAX_C = 70.0;      // höchste erlaubte Solltemperatur
@@ -93,7 +94,9 @@ Adafruit_ADS1115 ads;
 OneWire detWire(PIN_DS18B20);
 DallasTemperature detTemp(&detWire);
 bool hasAds = false, ledOn = false, zeroReq = false, darkReq = false;
-float sumI = 0, sumR = 0, darkI = 0, darkR = 0, ratio0 = 1, tempC = NAN;
+float sumI = 0, sumR = 0, darkI = 0, darkR = 0, ratio0 = 1, tempC = NAN, lastI = NAN, lastR = NAN;
+const float ADS_LIMIT_V = 4.0;        // darüber ist der Eingang des ADS1115 übersteuert (Messbereich ±4,096 V)
+uint8_t overCount = 0;
 uint16_t nAvg = 0;
 unsigned long dataMs = 1000, tData = 0, tSlow = 0, tVol = 0, lastRx = 0, wdMs = 0;
 bool wdTripped = false;
@@ -284,7 +287,7 @@ void readSerial() {
 void sendData(unsigned long now) {
   bool haveA = false; float absorbance = 0;
   if (hasAds && nAvg) {
-    float i = sumI / nAvg, r = sumR / nAvg;
+    float i = sumI / nAvg, r = sumR / nAvg; lastI = i; lastR = r;
     if (darkReq) { darkI = i; darkR = r; darkReq = false; Serial.println(F("# OK Dunkelwert")); }
     float den = r - darkR, ratio = den > 0.001 ? (i - darkI) / den : 0;
     if (zeroReq && ratio > 0) { ratio0 = ratio; zeroReq = false; }
@@ -299,6 +302,11 @@ void sendData(unsigned long now) {
 }
 void slowTasks() {
   float t = detTemp.getTempCByIndex(0); tempC = (t > -100 && t < 125) ? t : NAN; detTemp.requestTemperatures();
+  if (hasAds && !isnan(lastI)) {
+    Serial.print(F("V,uv_i,")); Serial.println(lastI, 4); Serial.print(F("V,uv_r,")); Serial.println(lastR, 4);
+    if (lastI > ADS_LIMIT_V || lastR > ADS_LIMIT_V) { if (overCount++ % 10 == 0) Serial.println(F("# Uebersteuert: Diodenspannung ueber 4 V, Blende verkleinern oder Abstand vergroessern")); }
+    else overCount = 0;
+  }
   for (uint8_t i = 0; i < nParts; i++) {
     Part &p = parts[i];
     if (p.kind == K_HEATER) {

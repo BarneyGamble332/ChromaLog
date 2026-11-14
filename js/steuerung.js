@@ -14,15 +14,15 @@ function ctlDefaults() {
   const a = { bottle: ctlMake('bottle', 20, 20, { name: 'Laufmittel' }), flow: ctlMake('flow', 170, 20, { name: 'Pumpe (Fluss gesamt)' }), press: ctlMake('press', 320, 20, { name: 'Drucksensor', source: 'D:press', scale: null, offset: null, fw: null, pin: '' }),
     inj: ctlMake('inj', 470, 20, { name: 'Injektionsventil' }), col: ctlMake('column', 620, 20), heat: ctlMake('heater', 620, 160, { name: 'Säulenheizung' }), uv: ctlMake('uv', 770, 20, { name: 'UV-Detektor' }), waste: ctlMake('waste', 920, 20),
     b: ctlMake('pctb', 170, 160, { name: 'Anteil B' }), led: ctlMake('uvled', 770, 160), zero: ctlMake('zero', 920, 160), temp: ctlMake('ds18', 470, 160), syr: ctlMake('syringe', 320, 160, { name: 'Spritzenpumpe A (Beispiel)', key: 'pumpea' }) };
-  const s1 = { led: ctlMake('uvled', 20, 20), uv: ctlMake('uv', 170, 20, { name: 'Extinktion' }), zero: ctlMake('zero', 20, 160), temp: ctlMake('ds18', 170, 160) };
-  return [
-    { id: uid(), name: 'Mini-HPLC (Simulator)', parts: Object.values(a), links: [[a.bottle, a.flow], [a.flow, a.press], [a.press, a.inj], [a.inj, a.col], [a.col, a.uv], [a.uv, a.waste]].map(l => ({ from: l[0].id, to: l[1].id })),
+  const s1 = { led: ctlMake('uvled', 20, 20), cuv: ctlMake('sample', 170, 20, { name: 'Küvette' }), uv: ctlMake('uv', 320, 20, { name: 'Extinktion' }), temp: ctlMake('ds18', 470, 20),
+    zero: ctlMake('zero', 20, 160), dark: ctlMake('dark', 170, 160, { name: 'Dunkelwert' }), ui: ctlMake('uv_i', 320, 160, { name: 'Messdiode' }), ur: ctlMake('uv_r', 470, 160, { name: 'Referenzdiode' }) };
+  const sim = { id: uid(), name: 'Mini-HPLC (Simulator)', parts: Object.values(a), links: [[a.bottle, a.flow], [a.flow, a.press], [a.press, a.inj], [a.inj, a.col], [a.col, a.uv], [a.uv, a.waste]].map(l => ({ from: l[0].id, to: l[1].id })),
       procs: [{ id: uid(), name: 'Anfahren und injizieren', steps: [{ type: 'set', key: 'fluss', value: '1' }, { type: 'until', src: 'D:press', op: '>', value: 5, timeout: 60 }, { type: 'set', key: 'led', value: '1' },
-        { type: 'wait', sec: 10 }, { type: 'set', key: 'zero', value: '' }, { type: 'set', key: 'inj', value: 'INJECT' }, { type: 'wait', sec: 20 }, { type: 'set', key: 'inj', value: 'LOAD' }] }] },
-    { id: uid(), name: 'Stufe 1 – UV-Detektor', parts: Object.values(s1), links: [{ from: s1.led.id, to: s1.uv.id }], procs: [] }
-  ];
+        { type: 'wait', sec: 10 }, { type: 'set', key: 'zero', value: '' }, { type: 'set', key: 'inj', value: 'INJECT' }, { type: 'wait', sec: 20 }, { type: 'set', key: 'inj', value: 'LOAD' }] }] };
+  const stage1 = { id: uid(), name: 'Stufe 1 – UV-Detektor', parts: Object.values(s1), links: [{ from: s1.led.id, to: s1.cuv.id }, { from: s1.cuv.id, to: s1.uv.id }], procs: [] };
+  return DEMO ? [sim, stage1] : [stage1, sim];       /* im echten Betrieb steht der Aufbau fürs Gerät vorn */
 }
-function ctlSave() { Store.put('kv', { id: 'control', cur: CTL.cur, layouts: CTL.layouts }); }
+function ctlSave() { Store.put('kv', { id: 'control', ver: 2, cur: CTL.cur, layouts: CTL.layouts }); }
 function ctlConfigure(clear) { if (!S.dev || !CTL.layouts.length) return; if (clear) cmd('CLEAR'); configCommands(ctlL().parts).forEach(c => cmd(c)); }
 function ctlValue(key, v) { CTL.meas[key] = v; }
 function ctlLogLine(text) {
@@ -437,7 +437,17 @@ function ctlBind() {
 }
 async function ctlInit() {
   const sv = await Store.get('kv', 'control');
-  if (sv && Array.isArray(sv.layouts) && sv.layouts.length) { CTL.layouts = sv.layouts; CTL.cur = sv.cur; }
+  if (sv && Array.isArray(sv.layouts) && sv.layouts.length) {
+    CTL.layouts = sv.layouts; CTL.cur = sv.cur;
+    if (!(sv.ver >= 2)) {                      /* gespeicherter Aufbau „Stufe 1“ aus einer älteren Version: fehlende Bauteile ergänzen, nichts überschreiben */
+      const l = CTL.layouts.find(q => q.name === 'Stufe 1 – UV-Detektor');
+      if (l && !l.parts.some(q => q.source === 'V:uv_i')) {
+        const y = Math.max(0, ...l.parts.map(q => q.y)) + 140;
+        [['dark', 'Dunkelwert'], ['uv_i', 'Messdiode'], ['uv_r', 'Referenzdiode']].forEach((q, i) => { const n = ctlMake(q[0], 20 + i * 150, y, { name: q[1] }); n.key = uniqueKey(n.key, l.parts); l.parts.push(n); });
+      }
+      ctlSave();
+    }
+  }
   else { CTL.layouts = ctlDefaults(); CTL.cur = CTL.layouts[0].id; ctlSave(); }
   CTL.layouts.forEach(l => { l.links = l.links || []; l.procs = l.procs || []; });
   ctlBind(); setInterval(ctlTick, 200);

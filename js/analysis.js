@@ -151,6 +151,18 @@ function linFit(pts, zero) {
     lod: low.sn ? low.conc * 3 / low.sn : null };
 }
 
+/* Kennzahlen einer Basislinie (für den Detektortest): Drift als Steigung der Ausgleichsgeraden je 10 min,
+   Rauschen als Streuung um diese Gerade, Spanne = größter minus kleinster Wert. t in Minuten. */
+function baselineStats(tMin, y) {
+  const pts = []; for (let i = 0; i < y.length; i++) if (y[i] != null && isFinite(y[i])) pts.push([tMin[i], y[i]]);
+  const n = pts.length; if (n < 3) return null;
+  let sx = 0, sy = 0, sxx = 0, sxy = 0, lo = Infinity, hi = -Infinity;
+  pts.forEach(q => { sx += q[0]; sy += q[1]; sxx += q[0] * q[0]; sxy += q[0] * q[1]; if (q[1] < lo) lo = q[1]; if (q[1] > hi) hi = q[1]; });
+  const den = n * sxx - sx * sx, slope = den ? (n * sxy - sx * sy) / den : 0, icpt = (sy - slope * sx) / n;
+  let sse = 0; pts.forEach(q => { sse += Math.pow(q[1] - (slope * q[0] + icpt), 2); });
+  return { n, mean: sy / n, drift10: slope * 10, noise: Math.sqrt(sse / (n - 2)), span: hi - lo, minutes: pts[n - 1][0] - pts[0][0] };
+}
+
 /* Konzentration aus der Peakfläche; out = außerhalb des kalibrierten Bereichs */
 function quantify(area, c) {
   if (!c || !(c.slope > 0)) return null;
@@ -158,4 +170,4 @@ function quantify(area, c) {
   return { v, out: v < c.min || v > c.max };
 }
 
-if (typeof module !== 'undefined') module.exports = { analyze, ANALYSIS_DEFAULTS, linFit, quantify };
+if (typeof module !== 'undefined') module.exports = { analyze, ANALYSIS_DEFAULTS, linFit, quantify, baselineStats };

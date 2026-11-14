@@ -88,6 +88,8 @@ int main() {
     CHECK(commas == 8, "F-60 Datenzeile hat 9 Felder");
     double t, uv; CHECK(sscanf(l.c_str(), "D,%lf,%lf", &t, &uv) == 2 && fabs(uv) < 1e-5, "F-60 nach Autozero ist die Extinktion 0");
     CHECK(l.find(",22.50,") != std::string::npos, "F-60 Temperatur steht in der Datenzeile"); }
+  CHECK(said("V,uv_i,2.0000") && said("V,uv_r,2.5000"), "F-63 Diodenspannungen werden gemeldet"); CHECK(!said("Uebersteuert"), "F-63 keine Warnung im Messbereich");
+  g_adsV[1] = 4.05f; quiet(); run(2200); CHECK(said("Uebersteuert"), "F-63 Warnung bei mehr als 4 V"); g_adsV[1] = 2.5f; run(2200);
   g_adsV[0] = 1.0f; quiet(); run(2200);
   { size_t a = Serial.out.rfind("D,"); double t, uv = -1; sscanf(Serial.out.c_str() + a, "D,%lf,%lf", &t, &uv);
     CHECK(nearf(uv, 0.30103, 0.0001), "F-61 halbes Licht ergibt Extinktion 0,301"); }
