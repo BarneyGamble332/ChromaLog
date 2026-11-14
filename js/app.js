@@ -4,7 +4,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const CH = ['uv', 'cond', 'press', 'temp', 'flow', 'b'];
-const APP_VERSION = '0.7';
+const APP_VERSION = '0.8';
 
 const DEFAULT_METHODS = [
   { id: 'm-screening', name: 'Abwasser-Screening (Gradient)', column: 'C18, 100 × 4,6 mm', solventA: 'Wasser + 0,1 % Ameisensäure', solventB: 'Acetonitril',
@@ -192,6 +192,7 @@ function renderControls() {
   $('#manLocked').hidden = idle;
   $('#btnLed').textContent = t(S.led ? 'led_off' : 'led_on');
   $('#inConc').disabled = $('#selType').value !== 'standard';
+  if (CTL.layouts.length) ctlRenderNodes();          /* Sperre der Bauteile folgt dem Zustand des Laufs */
 }
 const PANE2 = { press: { label: 'ch_press', unit: 'bar', color: '--c-press', span: 1, dec: 2 }, cond: { label: 'ch_cond', unit: 'µS/cm', color: '--c-cond', span: 5, dec: 1 }, temp: { label: 'ch_temp', unit: '°C', color: '--c-temp', span: 1, dec: 2 } };
 function drawLive() {
@@ -567,7 +568,7 @@ function setLang(l) {
   renderControls(); renderRuns(); fillRunSelect(); renderMethodList(); if (S.tab === 'methoden') renderEditor(); renderAnalysis(); renderAudit(); if (S.tab === 'kalibrierung') renderCal(); if (S.tab === 'sequenz') renderSeq(); if (S.tab === 'bericht') renderReport(); if (S.tab === 'steuerung') renderCtl(); S.dirty = true;
 }
 function frame() {
-  if (S.dirty) { S.dirty = false; renderStatus(); if (S.tab === 'messen') drawLive(); if (S.tab === 'system') renderConsole(); if (S.tab === 'steuerung') ctlLive(); }
+  if (S.dirty) { S.dirty = false; renderStatus(); if (S.tab === 'messen') drawLive(); if (S.tab === 'system') renderConsole(); if (S.tab === 'steuerung' || S.tab === 'messen') ctlLive(); }
   requestAnimationFrame(frame);
 }
 function bind() {

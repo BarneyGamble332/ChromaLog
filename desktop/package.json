@@ -1,7 +1,7 @@
 {
   "name": "chromalog-desktop",
   "productName": "ChromaLog",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Chromatographie-Software für die Mini-HPLC (Linux-Version)",
   "homepage": "https://github.com/BarneyGamble332/ChromaLog",
   "author": {

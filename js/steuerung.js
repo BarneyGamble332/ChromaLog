@@ -33,7 +33,7 @@ function ctlLogLine(text) {
 function ctlRenderLog() { const e = $('#ctlLog'); e.textContent = CTL.log.length ? CTL.log.join('\n') : t('ctl_nolog'); e.scrollTop = e.scrollHeight; }
 function ctlSend(p, v) {
   if (!S.dev) { toast(t('t_noconn'), true); return false; }
-  if (S.phase !== 'idle') { toast(t('ctl_runlock'), true); return false; }
+  if (S.phase !== 'idle' && partLockedInRun(p)) { toast(t('ctl_runlock'), true); return false; }
   CTL.values[p.key] = v; const c = partCommand(p, v); cmd(c); ctlLogLine(c); return true;
 }
 function ctlStopAll(byDevice) {
@@ -45,35 +45,71 @@ function ctlStopAll(byDevice) {
 }
 
 /* ---------- Kacheln ---------- */
-function ctlNodeHtml(p) {
-  let v = CTL.values[p.key]; const on = (c) => c ? ' on' : '';
-  if (v == null && p.fb && S.last && S.last[p.fb] != null) v = typeof S.last[p.fb] === 'number' ? Math.round(S.last[p.fb] / (p.step || 1)) * (p.step || 1) : S.last[p.fb];   /* Rückmeldung des Geräts */
+/* Aktueller Sollwert eines Bauteils: zuletzt gestellt, sonst die Rückmeldung des Geräts */
+function ctlCur(p) {
+  let v = CTL.values[p.key];
+  if (v == null && p.fb && S.last && S.last[p.fb] != null) v = typeof S.last[p.fb] === 'number' ? Math.round(S.last[p.fb] / (p.step || 1)) * (p.step || 1) : S.last[p.fb];
+  return v;
+}
+/* Bedienelemente eines Bauteils (für den Reiter „Messen“ und das Bedienfenster) */
+function ctlControls(p) {
+  const v = ctlCur(p), on = c => (c ? ' on' : '');
   const seg = opts => '<div class="seg">' + opts.map(o => '<button type="button" class="btn' + on(v != null && String(v) === String(o.value)) + '" data-act="set" data-v="' + esc(o.value) + '">' + esc(o.name) + '</button>').join('') + '</div>';
-  let b = '';
-  if (p.kind === 'switch') b = seg([{ name: p.off || t('ctl_off'), value: '0' }, { name: p.on || t('ctl_on'), value: '1' }]);
-  else if (p.kind === 'button') b = '<button type="button" class="btn" data-act="set" data-v="">' + esc(p.name) + '</button>';
-  else if (p.kind === 'positions') b = seg(p.positions || []);
-  else if (p.kind === 'slider') { const cur = v != null ? +v : Math.min(Math.max(0, p.min), p.max);
-    b = '<div class="rowv"><input type="range" data-act="range" min="' + p.min + '" max="' + p.max + '" step="' + (p.step || 1) + '" value="' + cur + '" aria-label="' + esc(p.name) + '"><span class="val"><span data-val>' + fmt(cur, decOf(p.step)) + '</span> ' + esc(p.unit || '') + '</span></div>' +
+  if (p.kind === 'switch') return seg([{ name: p.off || t('ctl_off'), value: '0' }, { name: p.on || t('ctl_on'), value: '1' }]);
+  if (p.kind === 'button') return '<button type="button" class="btn" data-act="set" data-v="">' + esc(p.name) + '</button>';
+  if (p.kind === 'positions') return seg(p.positions || []);
+  if (p.kind === 'slider') { const cur = v != null ? +v : Math.min(Math.max(0, p.min), p.max);
+    return '<div class="rowv"><input type="range" data-act="range" min="' + p.min + '" max="' + p.max + '" step="' + (p.step || 1) + '" value="' + cur + '" aria-label="' + esc(p.name) + '"><span class="val"><span data-val>' + fmt(cur, decOf(p.step)) + '</span> ' + esc(p.unit || '') + '</span></div>' +
       (p.stop ? '<button type="button" class="btn danger" data-act="set" data-v="0">' + t('ctl_stop') + '</button>' : ''); }
-  else if (p.kind === 'syringe') b = '<div class="rowv"><input type="number" data-role="value" step="' + (p.step || 0.05) + '" min="0" value="' + (p.value != null ? p.value : 0.5) + '" aria-label="' + esc(p.name) + '"><span class="lbl">' + esc(p.unit || 'ml/min') + '</span></div>' +
+  if (p.kind === 'syringe') return '<div class="rowv"><input type="number" data-role="value" step="' + (p.step || 0.05) + '" min="0" value="' + (p.value != null ? p.value : 0.5) + '" aria-label="' + esc(p.name) + '"><span class="lbl">' + esc(p.unit || 'ml/min') + '</span></div>' +
       '<div class="seg"><button type="button" class="btn' + on(+v > 0) + '" data-act="deliver">' + t('ctl_deliver') + '</button><button type="button" class="btn' + on(+v < 0) + '" data-act="fill">' + t('ctl_fill') + '</button><button type="button" class="btn danger" data-act="set" data-v="0">' + t('ctl_stop') + '</button></div>' +
       '<div class="barrow"><div class="bar"><i data-bar style="width:0%"></i></div><span class="lbl" data-live>–</span></div>';
-  else if (p.kind === 'heater') b = '<div class="rowv"><span class="lbl">' + t('ctl_setpoint') + '</span><input type="number" data-role="value" step="' + (p.step || 1) + '" min="' + p.min + '" max="' + p.max + '" value="' + (p.value != null ? p.value : 40) + '" aria-label="' + esc(p.name) + '"><span class="lbl">°C</span></div>' +
+  if (p.kind === 'heater') return '<div class="rowv"><span class="lbl">' + t('ctl_setpoint') + '</span><input type="number" data-role="value" step="' + (p.step || 1) + '" min="' + p.min + '" max="' + p.max + '" value="' + (p.value != null ? p.value : 40) + '" aria-label="' + esc(p.name) + '"><span class="lbl">°C</span></div>' +
       '<div class="seg"><button type="button" class="btn' + on(v != null && +v === 0) + '" data-act="set" data-v="0">' + t('ctl_off') + '</button><button type="button" class="btn' + on(+v > 0) + '" data-act="heat">' + t('ctl_on') + '</button></div>' +
       '<div class="big"><span data-live>–</span><span class="u">°C ' + t('ctl_actual') + '</span></div>';
-  else b = '<div class="rowv" style="justify-content:space-between"><div class="big"><span data-live>–</span><span class="u">' + esc(p.unit || '') + '</span></div><svg class="spark" viewBox="0 0 84 30" aria-hidden="true"><polyline data-spark points=""/></svg></div>';
+  return '<div class="rowv" style="justify-content:space-between"><div class="big"><span data-live>–</span><span class="u">' + esc(p.unit || '') + '</span></div><svg class="spark" viewBox="0 0 84 30" aria-hidden="true"><polyline data-spark points=""/></svg></div>';
+}
+/* Kurzanzeige im Fließbild: nur der Zustand; bedient wird im Fenster, das sich beim Anklicken öffnet */
+function ctlSummary(p) {
+  const v = ctlCur(p), st = txt => '<div class="state">' + txt + '</div>';
+  if (p.kind === 'switch') return st(v == null ? '–' : String(v) === '1' ? esc(p.on || t('ctl_on')) : esc(p.off || t('ctl_off')));
+  if (p.kind === 'button') return '';
+  if (p.kind === 'positions') { const q = (p.positions || []).find(o => String(o.value) === String(v)); return st(q ? esc(q.name) : '–'); }
+  if (p.kind === 'slider') return st(v == null ? '–' : fmt(+v, decOf(p.step)) + ' ' + esc(p.unit || ''));
+  if (p.kind === 'syringe') return st(+v > 0 ? t('ctl_state_deliver') + ' ' + fmt(+v, 2) + ' ml/min' : +v < 0 ? t('ctl_state_fill') + ' ' + fmt(-v, 2) + ' ml/min' : t('ctl_state_idle')) +
+      '<div class="barrow"><div class="bar"><i data-bar style="width:0%"></i></div><span class="lbl" data-live>–</span></div>';
+  if (p.kind === 'heater') return st(+v > 0 ? t('ctl_setpoint') + ' ' + fmt(+v, 0) + ' °C' : t('ctl_off')) + '<div class="big"><span data-live>–</span><span class="u">°C ' + t('ctl_actual') + '</span></div>';
+  return ctlControls(p);
+}
+/* mode: 'flow' = Kachel im Fließbild, 'inline' = Reiter „Messen“, 'op' = Bedienfenster */
+function ctlNodeHtml(p, mode) {
+  mode = mode || 'flow';
+  const flow = mode === 'flow', locked = S.phase !== 'idle' && partLockedInRun(p);
   const foot = (p.pin ? 'Pin ' + p.pin + ' · ' : '') + (p.kind === 'display' ? (p.source || '') : partCommand(p, p.kind === 'button' ? '' : '‹' + (LANG === 'de' ? 'wert' : 'value') + '›'));
-  const eb = CTL.edit ? '<div class="ne"><button type="button" class="btn small" data-act="link">' + t('ctl_link') + '</button><button type="button" class="btn small" data-act="edit">' + t('ctl_change') + '</button><button type="button" class="btn small danger" data-act="del" aria-label="' + t('m_del') + '">✕</button></div>' : '';
-  return '<div class="node' + (CTL.linkFrom === p.id ? ' linkfrom' : '') + '" data-id="' + p.id + '" style="left:' + p.x + 'px;top:' + p.y + 'px"><div class="nh"><div><div class="nn">' + esc(p.name) + '</div><div class="nt">' + t('k_' + p.kind) + '</div></div></div>' +
-    eb + '<div class="nb">' + b + '</div><div class="nf">' + esc(foot) + '</div></div>';
+  const eb = CTL.edit && flow ? '<div class="ne"><button type="button" class="btn small" data-act="link">' + t('ctl_link') + '</button><button type="button" class="btn small" data-act="edit">' + t('ctl_change') + '</button><button type="button" class="btn small danger" data-act="del" aria-label="' + t('m_del') + '">✕</button></div>' : '';
+  const cls = 'node' + (flow ? ' compact' + (CTL.linkFrom === p.id ? ' linkfrom' : '') + (CTL.opId === p.id ? ' sel' : '') + (p.kind !== 'display' ? ' can' : '') : ' inline' + (mode === 'op' ? ' op' : '')) + (locked ? ' locked' : '');
+  return '<div class="' + cls + '" data-id="' + p.id + '"' + (flow ? ' style="left:' + p.x + 'px;top:' + p.y + 'px"' : '') + '><div class="nh"><div><div class="nn">' + esc(p.name) + '</div><div class="nt">' + t('k_' + p.kind) + '</div></div></div>' +
+    eb + '<div class="nb">' + (flow ? ctlSummary(p) : ctlControls(p)) + '</div><div class="nf">' + esc(foot) + '</div></div>';
 }
 const decOf = step => { const s = String(step || 1); return s.indexOf('.') < 0 ? 0 : Math.min(3, s.length - s.indexOf('.') - 1); };
 function ctlRenderNodes() {
   const inner = $('#flowInner'), L = ctlL();
   inner.querySelectorAll('.node').forEach(n => n.remove());
-  inner.insertAdjacentHTML('beforeend', L.parts.map(ctlNodeHtml).join(''));
-  ctlSize(); ctlDrawLinks(); ctlLive();
+  inner.insertAdjacentHTML('beforeend', L.parts.map(p => ctlNodeHtml(p, 'flow')).join(''));
+  ctlSize(); ctlDrawLinks(); ctlRenderMess(); ctlRenderOp(); ctlLive();
+}
+/* Bedienfenster: öffnet sich beim Anklicken eines Bauteils im Fließbild */
+function ctlOpenOp(p) { CTL.opId = p.id; ctlRenderNodes(); const d = $('#opDlg'); if (!d.open) d.showModal(); }
+function ctlRenderOp() {
+  const d = $('#opDlg'); if (!CTL.opId) return;
+  const p = ctlById(CTL.opId); if (!p) { CTL.opId = null; if (d.open) d.close(); return; }
+  $('#opBody').innerHTML = ctlNodeHtml(p, 'op');
+}
+/* Dieselben Kacheln im Reiter „Messen“ (ohne Fließbild), damit man beim Messen alles im Blick und im Griff hat */
+function ctlRenderMess() {
+  const L = ctlL(), parts = L.parts.filter(p => p.onMess !== false);
+  $('#mpName').textContent = L.name; $('#mParts').innerHTML = parts.map(p => ctlNodeHtml(p, 'inline')).join('');
+  $('#mpCard').hidden = !parts.length; $('#manCard').hidden = parts.length > 0;
 }
 function ctlSize() {
   const L = ctlL(), inner = $('#flowInner');
@@ -88,17 +124,17 @@ function ctlDrawLinks() {
 function ctlLive() {
   if (!CTL.fbDone && S.last) { CTL.fbDone = true; ctlRenderNodes(); return; }
   const L = ctlL(), now = performance.now(), tickHist = now - CTL.lastHist >= 1000; if (tickHist) CTL.lastHist = now;
-  document.querySelectorAll('#flowInner .node').forEach(n => {
+  document.querySelectorAll('#flowInner .node, #mParts .node, #opBody .node').forEach(n => {
     const p = ctlById(n.dataset.id); if (!p) return; const live = n.querySelector('[data-live]'); if (!live) return;
     if (p.kind === 'display') {
       const val = partReading(p, S.last, CTL.meas); live.textContent = fmt(val, p.dec == null ? 2 : p.dec);
       const h = CTL.hist[p.id] || (CTL.hist[p.id] = []);
-      if (tickHist && val != null) { h.push(val); if (h.length > 60) h.shift(); }
+      if (tickHist && val != null && n.classList.contains('compact')) { h.push(val); if (h.length > 60) h.shift(); }
       const sp = n.querySelector('[data-spark]');
       if (sp && h.length > 1) { const lo = Math.min(...h), hi = Math.max(...h), sc = hi - lo || 1; sp.setAttribute('points', h.map((q, i) => (i * 84 / 59).toFixed(1) + ',' + (27 - (q - lo) / sc * 24).toFixed(1)).join(' ')); }
     } else if (p.kind === 'syringe') {
       const vol = CTL.meas[p.key]; live.textContent = t('ctl_level') + ' ' + fmt(vol, 1) + ' ' + t('ctl_of') + ' ' + fmt(p.max, 0) + ' ml';
-      n.querySelector('[data-bar]').style.width = (vol == null ? 0 : Math.max(0, Math.min(100, vol / p.max * 100))).toFixed(0) + '%';
+      const bar = n.querySelector('[data-bar]'); if (bar) bar.style.width = (vol == null ? 0 : Math.max(0, Math.min(100, vol / p.max * 100))).toFixed(0) + '%';
     } else if (p.kind === 'heater') live.textContent = fmt(CTL.meas[p.key], 1);
   });
 }
@@ -131,7 +167,7 @@ function ctlOpenLib() {
 const CTL_FIELDS = [
   { k: 'name', l: 'm_name' }, { k: 'key', l: 'ctl_key' }, { k: 'kind', l: 'ctl_kind', sel: true }, { k: 'pin', l: 'ctl_pin' }, { k: 'fw', l: 'ctl_fw', fwsel: true },
   { k: 'spm', l: 'ctl_spm', num: true, kinds: ['syringe', 'slider'] }, { k: 'role', l: 'ctl_role', rolesel: true, kinds: ['syringe', 'slider', 'positions'] },
-  { k: 'target', l: 'ctl_target', kinds: ['display'] }, { k: 'tdir', l: 'ctl_tdir', num: true, kinds: ['display'] }, { k: 'scale', l: 'ctl_scale', num: true, kinds: ['display'] }, { k: 'offset', l: 'ctl_offset', num: true, kinds: ['display'] },
+  { k: 'onMess', l: 'ctl_onmess', check: true }, { k: 'target', l: 'ctl_target', kinds: ['display'] }, { k: 'tdir', l: 'ctl_tdir', num: true, kinds: ['display'] }, { k: 'scale', l: 'ctl_scale', num: true, kinds: ['display'] }, { k: 'offset', l: 'ctl_offset', num: true, kinds: ['display'] },
   { k: 'min', l: 'ctl_min', num: true, kinds: ['slider', 'heater'] }, { k: 'max', l: 'ctl_max', num: true, kinds: ['slider', 'heater'] }, { k: 'max', l: 'ctl_max_syr', num: true, kinds: ['syringe'] },
   { k: 'step', l: 'ctl_step', num: true, kinds: ['slider', 'syringe', 'heater'] }, { k: 'unit', l: 'ctl_unit', kinds: ['slider', 'display'] }, { k: 'fill', l: 'ctl_fillrate', num: true, kinds: ['syringe'] },
   { k: 'positions', l: 'ctl_positions', kinds: ['positions'], wide: true }, { k: 'off', l: 'ctl_off', kinds: ['switch'] }, { k: 'on', l: 'ctl_on', kinds: ['switch'] },
@@ -149,6 +185,7 @@ function ctlOpenPart(p, isNew) {
     const rows = CTL_FIELDS.filter(f => !f.kinds || f.kinds.includes(w.kind)).map(f => {
       const id = 'pf_' + f.k, val = w[f.k] == null ? '' : w[f.k];
       let inp;
+      if (f.check) return '<label class="chk wide"><input id="' + id + '" data-f="' + f.k + '" type="checkbox"' + (w[f.k] !== false ? ' checked' : '') + '> <span>' + t(f.l) + '</span></label>';
       if (f.sel) inp = '<select id="' + id + '" data-f="kind">' + CTL_KINDS.map(k => '<option value="' + k + '"' + (k === w.kind ? ' selected' : '') + '>' + t('k_' + k) + '</option>').join('') + '</select>';
       else if (f.rolesel) { const opts = w.kind === 'positions' ? ['', 'inj'] : ['', 'flow', 'pumpA', 'pumpB'];
         inp = '<select id="' + id + '" data-f="role">' + opts.map(k => '<option value="' + k + '"' + (k === (w.role || '') ? ' selected' : '') + '>' + t('role_' + (k || 'none')) + '</option>').join('') + '</select>'; }
@@ -160,7 +197,7 @@ function ctlOpenPart(p, isNew) {
     }).join('');
     d.innerHTML = '<h3>' + t('ctl_part') + '</h3><div class="form">' + rows + '</div><div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-x="cancel">' + t('cancel') + '</button><button type="button" class="btn primary" data-x="ok">' + t('ok') + '</button></div>';
   };
-  const read = () => d.querySelectorAll('[data-f]').forEach(e => { w[e.dataset.f] = e.type === 'number' ? (e.value === '' ? null : +e.value) : e.value; });
+  const read = () => d.querySelectorAll('[data-f]').forEach(e => { w[e.dataset.f] = e.type === 'checkbox' ? e.checked : e.type === 'number' ? (e.value === '' ? null : +e.value) : e.value; });
   d.onchange = e => { if (e.target.dataset.f === 'kind') { read(); if (w.kind === 'slider' || w.kind === 'heater') { if (w.min == null) w.min = 0; if (w.max == null) w.max = 100; } if (w.kind === 'syringe' && w.max == null) w.max = 60; if (w.kind === 'display' && !w.source) w.source = 'V:' + w.key; w.fw = CTL_FW[w.kind]; build(); } };
   d.onclick = e => {
     const b = e.target.closest('button[data-x]'); if (!b) return;
@@ -235,6 +272,21 @@ function ctlTick() {
 /* ---------- Ereignisse ---------- */
 function ctlBind() {
   const inner = $('#flowInner');
+  /* Bedienung der Kacheln – gilt für das Fließbild und für die Liste im Reiter „Messen“ */
+  const operate = (e, node, p) => {
+    const b = e.target.closest('button[data-act]'); if (!b) return;
+    const act = b.dataset.act, valIn = node.querySelector('[data-role="value"]');
+    if (act === 'set') { if (ctlSend(p, b.dataset.v)) ctlRenderNodes(); }
+    else if (act === 'deliver') { p.value = Math.abs(+valIn.value || 0); ctlSave(); if (ctlSend(p, p.value)) ctlRenderNodes(); }
+    else if (act === 'fill') { if (ctlSend(p, -(+p.fill || 5))) ctlRenderNodes(); }
+    else if (act === 'heat') { p.value = +valIn.value || p.min; ctlSave(); if (ctlSend(p, p.value)) ctlRenderNodes(); }
+  };
+  const onInput = e => { if (e.target.dataset.act === 'range') { const n = e.target.closest('.node'), p = ctlById(n.dataset.id); n.querySelector('[data-val]').textContent = fmt(+e.target.value, decOf(p.step)); } };
+  const onChange = e => {
+    const n = e.target.closest('.node'); if (!n) return; const p = ctlById(n.dataset.id); if (!p) return;
+    if (e.target.dataset.act === 'range') { if (ctlSend(p, e.target.value)) ctlRenderNodes(); else ctlRenderNodes(); }
+    else if (e.target.dataset.role === 'value') { p.value = +e.target.value; ctlSave(); }   /* nicht neu zeichnen: sonst geht der Klick auf den Knopf daneben verloren */
+  };
   inner.addEventListener('click', e => {
     const hit = e.target.closest('path.hit');
     if (hit && CTL.edit) { ctlL().links.splice(+hit.dataset.i, 1); ctlSave(); ctlDrawLinks(); return; }
@@ -244,22 +296,24 @@ function ctlBind() {
       if (CTL.linkFrom !== p.id && !L.links.some(l => l.from === CTL.linkFrom && l.to === p.id)) { L.links.push({ from: CTL.linkFrom, to: p.id }); ctlSave(); }
       CTL.linkFrom = null; renderCtl(); return;
     }
-    if (!b) return;
-    const act = b.dataset.act, valIn = node.querySelector('[data-role="value"]');
+    if (!b) { if (!CTL.edit && p.kind !== 'display') ctlOpenOp(p); return; }
+    const act = b.dataset.act;
     if (act === 'link') { CTL.linkFrom = CTL.linkFrom === p.id ? null : p.id; renderCtl(); }
     else if (act === 'edit') ctlOpenPart(p, false);
     else if (act === 'del') confirmDlg(t('ctl_del_part')).then(ok => { if (!ok) return; L.parts = L.parts.filter(q => q.id !== p.id); L.links = L.links.filter(l => l.from !== p.id && l.to !== p.id); ctlSave(); ctlConfigure(true); logAudit('component deleted', L.name + ' · ' + p.name); renderCtl(); });
-    else if (act === 'set') { if (ctlSend(p, b.dataset.v)) ctlRenderNodes(); }
-    else if (act === 'deliver') { p.value = Math.abs(+valIn.value || 0); ctlSave(); if (ctlSend(p, p.value)) ctlRenderNodes(); }
-    else if (act === 'fill') { if (ctlSend(p, -(+p.fill || 5))) ctlRenderNodes(); }
-    else if (act === 'heat') { p.value = +valIn.value || p.min; ctlSave(); if (ctlSend(p, p.value)) ctlRenderNodes(); }
+    else operate(e, node, p);
   });
-  inner.addEventListener('input', e => { if (e.target.dataset.act === 'range') { const n = e.target.closest('.node'), p = ctlById(n.dataset.id); n.querySelector('[data-val]').textContent = fmt(+e.target.value, decOf(p.step)); } });
-  inner.addEventListener('change', e => {
-    const n = e.target.closest('.node'); if (!n) return; const p = ctlById(n.dataset.id); if (!p) return;
-    if (e.target.dataset.act === 'range') ctlSend(p, e.target.value);
-    else if (e.target.dataset.role === 'value') { p.value = +e.target.value; ctlSave(); }
-  });
+  inner.addEventListener('input', onInput); inner.addEventListener('change', onChange);
+  const mp = $('#mParts');
+  mp.addEventListener('click', e => { const node = e.target.closest('.node'), p = node && ctlById(node.dataset.id); if (p) operate(e, node, p); });
+  mp.addEventListener('input', onInput); mp.addEventListener('change', onChange);
+  $('#mpStop').onclick = () => ctlStopAll();
+  const ob = $('#opBody'), od = $('#opDlg');
+  ob.addEventListener('click', e => { const node = e.target.closest('.node'), p = node && ctlById(node.dataset.id); if (p) operate(e, node, p); });
+  ob.addEventListener('input', onInput); ob.addEventListener('change', onChange);
+  $('#opClose').onclick = () => od.close();
+  od.addEventListener('click', e => { if (e.target === od) od.close(); });          /* Klick neben das Fenster schließt es */
+  od.addEventListener('close', () => { CTL.opId = null; ctlRenderNodes(); });
   inner.addEventListener('pointerdown', e => {
     if (!CTL.edit || CTL.linkFrom) return; const h = e.target.closest('.nh'); if (!h) return;
     const node = h.parentElement, p = ctlById(node.dataset.id); if (!p) return;

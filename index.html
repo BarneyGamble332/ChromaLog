@@ -68,6 +68,14 @@
           <button class="btn danger" id="btnAbort" type="button" data-i18n="abort" disabled></button>
         </div>
       </div>
+      <div class="card" id="mpCard" hidden>
+        <div class="toolbar">
+          <h2 data-i18n="mp_title"></h2><span class="hint nomargin" id="mpName"></span><span class="grow"></span>
+          <button class="btn stopall small" id="mpStop" type="button" data-i18n="ctl_stopall"></button>
+        </div>
+        <div class="mparts" id="mParts"></div>
+        <p class="hint"><a href="#steuerung" data-i18n="mp_edit"></a></p>
+      </div>
       <div class="card" id="manCard">
         <h2 data-i18n="man_title"></h2>
         <p class="hint" id="manLocked" data-i18n="man_locked" hidden></p>
@@ -283,6 +291,7 @@
 </main>
 
 <div id="toast" role="status" aria-live="polite"></div>
+<dialog id="opDlg" class="wide narrow"><div id="opBody"></div><div class="row" style="justify-content:flex-end"><button class="btn" id="opClose" type="button" data-i18n="ctl_close"></button></div></dialog>
 <dialog id="libDlg" class="wide"></dialog>
 <dialog id="partDlg" class="wide"></dialog>
 <dialog id="dlg"><p id="dlgText"></p><div class="row"><button class="btn danger" id="dlgYes" type="button"></button><button class="btn" id="dlgNo" type="button"></button></div></dialog>

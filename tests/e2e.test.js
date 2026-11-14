@@ -113,12 +113,12 @@ test('A-47 Veränderte Rohdaten werden beim Import und beim Öffnen erkannt', as
 
 test('A-58 Fließbild: verschieben, verbinden, Bauteil anlegen, Leitung löschen, bleibt erhalten', async () => {
   const o = await open('#steuerung'), p = o.page;
-  await p.waitForSelector('.node'); await p.click('#ctlEdit');
+  await p.waitForSelector('#flowInner .node'); await p.click('#ctlEdit');
   const before = await p.evaluate("({ links: ctlL().links.length, parts: ctlL().parts.length, y: ctlL().parts.find(q => q.key === 'anteilb').y })");
-  const bb = await p.locator('.node:has-text("Anteil B") .nh').boundingBox();
+  const bb = await p.locator('#flowInner .node:has-text("Anteil B") .nh').boundingBox();
   await p.mouse.move(bb.x + 40, bb.y + 10); await p.mouse.down(); await p.mouse.move(bb.x + 40, bb.y + 130, { steps: 5 }); await p.mouse.up();
-  await p.locator('.node:has-text("Anteil B") button:has-text("Verbinden")').click();
-  await p.locator('.node:has-text("Pumpe (Fluss gesamt)") .nn').click();
+  await p.locator('#flowInner .node:has-text("Anteil B") button:has-text("Verbinden")').click();
+  await p.locator('#flowInner .node:has-text("Pumpe (Fluss gesamt)") .nn').click();
   await p.click('#ctlAdd'); await p.locator('#libDlg button[data-lib="leak"]').click(); await p.locator('#partDlg button[data-x="ok"]').click();
   let a = await p.evaluate("({ links: ctlL().links.length, parts: ctlL().parts.length, y: ctlL().parts.find(q => q.key === 'anteilb').y, cfg: S.console.filter(l => l.includes('CFG leck')).pop() })");
   assert.equal(a.links, before.links + 1); assert.equal(a.parts, before.parts + 1); assert.equal(a.y, before.y + 120); assert.equal(a.cfg, '> CFG leck LIMIT 13 ALL 0');
@@ -133,17 +133,28 @@ test('A-58 Fließbild: verschieben, verbinden, Bauteil anlegen, Leitung löschen
   await done(o);
 });
 
-test('A-59 / A-60 / A-63 / A-65 Ablauf, „Alles stopp“, Sperre im Methodenlauf, Lecksensor, Neuanmeldung', async () => {
+test('A-59 / A-60 / A-63 / A-65 / A-74 Bedienfenster, Ablauf, „Alles stopp“, Sperre im Methodenlauf, Lecksensor, Neuanmeldung', async () => {
   const o = await open('#steuerung'), p = o.page;
-  await p.waitForSelector('.node'); await p.evaluate('S.dev.speed = 1');
-  await p.locator('.node:has-text("Säulenheizung") button:has-text("An")').click();
+  await p.waitForSelector('#flowInner .node'); await p.evaluate('S.dev.speed = 1');
+  /* A-74: Bauteil im Fließbild anklicken öffnet das Bedienfenster */
+  assert.equal(await p.evaluate("document.querySelectorAll('#flowInner .node button').length"), 0, 'im Fließbild selbst gibt es keine Bedienknöpfe');
+  await p.locator('#flowInner .node:has-text("Säulenheizung")').click(); await p.waitForSelector('#opDlg[open]');
+  assert.ok(await p.evaluate("document.querySelector('#flowInner .node.sel .nn').textContent.includes('Säulenheizung')"), 'gewähltes Bauteil ist markiert');
+  await p.fill('#opBody input[data-role="value"]', '45'); await p.locator('#opBody button:has-text("An")').click();
+  assert.equal(await p.evaluate('CTL.values.heizung'), 45);
+  await p.waitForFunction("document.querySelector('#opBody [data-live]').textContent !== '–'", null, { timeout: 10000 });
+  await p.click('#opClose'); await p.waitForFunction("!document.querySelector('#opDlg').open && !document.querySelector('#flowInner .node.sel')");
+  assert.ok(await p.evaluate("document.querySelector('#flowInner .node[data-id=\"' + ctlL().parts.find(q => q.key === 'heizung').id + '\"] .state').textContent.includes('45')"), 'Kachel zeigt den neuen Sollwert');
+  await p.locator('#flowInner .node:has-text("Drucksensor")').click(); assert.equal(await p.evaluate("document.querySelector('#opDlg').open"), false, 'reine Anzeigen öffnen kein Fenster');
   await p.click('#prStart'); await p.waitForFunction('CTL.run && CTL.run.idx >= 3', null, { timeout: 20000 });
   await p.click('#ctlStopAll');
   let r = await p.evaluate("({ run: CTL.run, flow: S.dev.flowSet, heat: CTL.values.heizung, valve: CTL.values.inj, audit: S.auditLog.some(a => a.action === 'stop all') })");
   assert.equal(r.run, null); assert.equal(r.flow, 0); assert.equal(r.heat, '0'); assert.equal(r.valve, 'LOAD'); assert.ok(r.audit);
   /* Sperre: während eines Methodenlaufs sendet die Steuerung nichts */
   await p.evaluate("location.hash = '#messen'"); await p.click('#btnStart'); await p.waitForFunction("S.phase !== 'idle'");
-  assert.equal(await p.evaluate("ctlSend(ctlL().parts.find(q => q.key === 'heizung'), 40)"), false, 'A-60 Steuerung ist gesperrt');
+  assert.equal(await p.evaluate("ctlSend(ctlL().parts.find(q => q.key === 'fluss'), 0.2)"), false, 'A-60 von der Methode gefahrenes Bauteil ist gesperrt');
+  assert.equal(await p.evaluate("ctlSend(ctlL().parts.find(q => q.key === 'heizung'), 40)"), true, 'A-60 andere Bauteile bleiben im Lauf bedienbar');
+  assert.ok(await p.evaluate("document.querySelector('#mParts .node.locked .nn').textContent.includes('Pumpe')"), 'gesperrte Kachel ist im Reiter Messen gekennzeichnet');
   await p.evaluate('ctlStopAll()'); await p.waitForFunction("S.phase === 'idle'");
   assert.equal(await p.evaluate('S.dev.flowSet'), 0, 'A-60 „Alles stopp“ bricht auch den Methodenlauf ab');
   /* A-63: Meldung des Lecksensors vom Gerät löst „Alles stopp“ in der App aus */
@@ -159,7 +170,7 @@ test('A-59 / A-60 / A-63 / A-65 Ablauf, „Alles stopp“, Sperre im Methodenlau
 
 test('A-67 Methodenlauf fährt die Bauteile mit Rolle (Pumpe A/B, Injektionsventil)', async () => {
   const o = await open('#steuerung'), p = o.page;
-  await p.waitForSelector('.node');
+  await p.waitForSelector('#flowInner .node');
   await p.evaluate(`(() => { const L = ctlL(); const mk = (lib, key, role) => { const q = ctlMake(lib, 40, 600); q.key = key; q.role = role; L.parts.push(q); };
     mk('syringe', 'pa', 'pumpA'); mk('syringe', 'pb', 'pumpB'); mk('hahn3', 'iv', 'inj'); ctlConfigure(true);
     window.sent = []; const send = S.dev.send.bind(S.dev); S.dev.send = c => { window.sent.push(c); send(c); }; })()`);
@@ -172,6 +183,27 @@ test('A-67 Methodenlauf fährt die Bauteile mit Rolle (Pumpe A/B, Injektionsvent
   const sum = parseFloat(c.filter(l => l.startsWith('SET pa')).pop().split(' ').pop()) + parseFloat(last.split(' ').pop()); assert.ok(Math.abs(sum - 1) < 0.002, 'A + B ergeben den Gesamtfluss: ' + sum);
   assert.ok(!c.some(l => l.startsWith('PCTB') || l.startsWith('FLOW')), 'keine unveränderten Methodenbefehle mehr');
   await p.click('#btnAbort'); await done(o);
+});
+
+test('A-73 Bauteile des Aufbaus erscheinen im Reiter „Messen“ und lassen sich dort bedienen', async () => {
+  const o = await open('#messen'), p = o.page;
+  await p.waitForSelector('#mParts .node');
+  assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), await p.evaluate('ctlL().parts.length'), 'alle Bauteile des Aufbaus');
+  assert.equal(await p.evaluate("document.querySelector('#manCard').hidden"), true, 'feste Handsteuerung ist dann ausgeblendet');
+  await p.locator('#mParts .node:has-text("Säulenheizung") button:has-text("An")').click();
+  await p.locator('#mParts .node:has-text("Injektionsventil") button:has-text("Injizieren")').click();
+  await p.waitForFunction("S.last.valve === 'INJECT' && CTL.meas.heizung > 22.2", null, { timeout: 20000 });
+  assert.equal(await p.evaluate('CTL.values.heizung'), 40);
+  assert.ok(await p.evaluate("document.querySelector('#mParts .node:nth-child(3) [data-live]').textContent !== '–'"), 'Messwerte laufen mit');
+  /* Bauteil ausblenden, anderer Aufbau, leerer Aufbau */
+  await p.evaluate("ctlL().parts.find(q => q.key === 'heizung').onMess = false; ctlRenderNodes()");
+  assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), await p.evaluate('ctlL().parts.length - 1'), 'ausgeblendetes Bauteil fehlt');
+  await p.evaluate("location.hash = '#steuerung'"); await p.selectOption('#ctlSel', { label: 'Stufe 1 – UV-Detektor' }); await p.evaluate("location.hash = '#messen'");
+  assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), 4, 'Reiter Messen folgt dem gewählten Aufbau');
+  await p.evaluate("ctlL().parts.length = 0; ctlRenderNodes()");
+  assert.equal(await p.evaluate("document.querySelector('#mpCard').hidden && !document.querySelector('#manCard').hidden"), true, 'ohne Bauteile erscheint wieder die Handsteuerung');
+  await p.click('#mpStop', { force: true }).catch(() => {});
+  await done(o);
 });
 
 /* Nachgebildete Capacitor-Brücke: prüft, dass die App die Plugins so anspricht, wie deren Schnittstelle es vorsieht.

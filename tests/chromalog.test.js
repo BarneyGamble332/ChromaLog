@@ -274,3 +274,9 @@ test('A-69 Android-Verbindung: Zeilen aus Bruchstücken, Hex-Umwandlung für Blu
   assert.deepEqual(Array.from(hexToBytes('53 45-54:0a')), [0x53, 0x45, 0x54, 0x0a], 'Trennzeichen werden übergangen');
   assert.equal(new TextDecoder().decode(hexToBytes(bytesToHex(bytes))), 'SET pa 0.5\n');
 });
+
+test('A-60 Im Methodenlauf sind nur die Bauteile gesperrt, die die Methode selbst fährt', () => {
+  assert.equal(C.partLockedInRun({ key: 'pa', role: 'pumpA' }), true); assert.equal(C.partLockedInRun({ key: 'iv', role: 'inj' }), true);
+  assert.equal(C.partLockedInRun({ key: 'fluss', cmd: 'FLOW {v}' }), true); assert.equal(C.partLockedInRun({ key: 'b', cmd: 'PCTB {v}' }), true); assert.equal(C.partLockedInRun({ key: 'inj', cmd: 'VALVE {v}' }), true);
+  assert.equal(C.partLockedInRun({ key: 'heizung', kind: 'heater' }), false); assert.equal(C.partLockedInRun({ key: 'led', cmd: 'LED {v}' }), false); assert.equal(C.partLockedInRun({ key: 'mv', role: '' }), false);
+});

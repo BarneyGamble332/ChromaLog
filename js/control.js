@@ -78,6 +78,8 @@ function methodCommands(parts, st, name, value) {
   }
   return [{ cmd: (name + ' ' + (value == null ? '' : value)).trim() }];
 }
+/* Im Methodenlauf gesperrt sind nur Bauteile, die die Methode selbst fährt: solche mit Rolle oder mit einem Methodenbefehl */
+function partLockedInRun(p) { return !!p.role || /^(FLOW|PCTB|VALVE)\b/i.test(p.cmd || ''); }
 /* Was bei „Alles stopp“ gesendet wird */
 function safeCommands(parts) {
   return parts.filter(p => p.kind !== 'display' && p.kind !== 'button' && p.safe != null && String(p.safe).trim() !== '')
@@ -131,4 +133,4 @@ function linkPath(a, b) {
   return 'M' + r(sx) + ' ' + r(sy) + ' C' + r(c1[0]) + ' ' + r(c1[1]) + ' ' + r(c2[0]) + ' ' + r(c2[1]) + ' ' + r(ex) + ' ' + r(ey);
 }
 
-if (typeof module !== 'undefined') module.exports = { CTL_LIB, CTL_KINDS, CTL_FW, CTL_FW_KINDS, CTL_ROLES, methodCommands, partReading, partCommand, configCommands, safeCommands, readSource, stepState, uniqueKey, parsePositions, linkPath };
+if (typeof module !== 'undefined') module.exports = { partLockedInRun, CTL_LIB, CTL_KINDS, CTL_FW, CTL_FW_KINDS, CTL_ROLES, methodCommands, partReading, partCommand, configCommands, safeCommands, readSource, stepState, uniqueKey, parsePositions, linkPath };

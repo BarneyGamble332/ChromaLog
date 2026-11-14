@@ -1,6 +1,6 @@
 # ChromaLog – Anforderungen und Nachweise
 
-Stand: 12.11.2026 · gilt für Version 0.7
+Stand: 12.11.2026 · gilt für Version 0.8
 
 Dieses Dokument hält fest, was die Software können muss, und womit jede Anforderung nachgewiesen ist. Es ist die Grundlage für eine spätere Validierung. Bei jeder Änderung an der Software wird es mitgepflegt.
 
@@ -74,7 +74,7 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 | A-57 | Simulator: Spritzenpumpe fördert das eingestellte Volumen und hält leer an; Heizung erreicht den Sollwert; Messwertzeilen werden gelesen. | Automatisch | erfüllt |
 | A-58 | Bauteile lassen sich verschieben, verbinden, ändern und löschen; der Aufbau bleibt nach dem Neuladen erhalten. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
 | A-59 | „Alles stopp“ beendet einen laufenden Ablauf und stoppt die Pumpen. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
-| A-60 | Während eines Methodenlaufs ist die Steuerung gesperrt; „Alles stopp“ bricht auch den Methodenlauf ab. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
+| A-60 | Während eines Methodenlaufs sind die Bauteile gesperrt, die die Methode selbst fährt (Rolle oder Methodenbefehl); alle anderen bleiben bedienbar. „Alles stopp“ bricht auch den Methodenlauf ab. | Automatisch (Rechenkern und Browser) | erfüllt im Simulator |
 | A-61 | Allgemeiner Sketch für den Arduino Uno (`firmware/chromalog_uno`), der `CLEAR`, `CFG` und `SET` versteht, Pin-Regeln prüft und Messwerte als `V`-Zeilen meldet. | Übersetzung für den Uno und Logiktest am PC (F-01 bis F-12, F-60 bis F-70) | Logik geprüft, am Gerät ungetestet |
 | A-62 | Heizung: Regelung, Begrenzung des Sollwerts und Abschaltung bei Fühlerfehler oder Übertemperatur laufen im Gerät, auch ohne Verbindung zur App. | Logiktest am PC (F-30 bis F-32, F-50) | Logik geprüft, am Gerät ungetestet |
 | A-63 | Lecksensor: Der Sketch stoppt Pumpen und Heizungen selbst und meldet es; die App führt daraufhin „Alles stopp“ aus. | Logiktest am PC (F-40) und automatisch im Browser | Logik geprüft, am Gerät ungetestet |
@@ -83,6 +83,8 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 | A-66 | Endschalter halten eine Pumpe in der eingestellten Richtung an und berichtigen den Füllstand. Bleibt das Lebenszeichen der App aus, halten die Pumpen an; die Heizung regelt weiter. | Logiktest am PC (F-20, F-21, F-50, F-51) | Logik geprüft, am Gerät ungetestet |
 | A-67 | Ein Methodenlauf fährt die Bauteile mit Rolle: Pumpe A und B teilen den Fluss nach dem Anteil B, das Injektionsventil schaltet zwischen erster und zweiter Stellung; ohne Rollen gehen die Befehle unverändert ans Gerät. | Automatisch (Rechenkern und Browser) | erfüllt im Simulator |
 | A-68 | Endschalter und Lecksensor werden nach ihrem Ziel angemeldet; Ereigniszeilen des Geräts (`E,STOP`, `E,LIMIT`) werden gelesen. | Automatisch | erfüllt |
+| A-73 | Die Bauteile des gewählten Aufbaus erscheinen im Reiter „Messen“ mit ihren Bedienelementen und laufenden Messwerten; einzelne Bauteile lassen sich ausblenden; ohne Bauteile erscheint die feste Handsteuerung. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
+| A-74 | Im Fließbild zeigt jede Kachel nur den Zustand; ein Klick wählt das Bauteil an und öffnet ein Fenster mit seinen Bedienelementen. Reine Anzeigen öffnen kein Fenster. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
 
 ## 6 Linux-Programm und Android-App
 | Nr. | Anforderung | Nachweis | Status |
@@ -106,3 +108,4 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 | 12.11.2026 | 0.5 | Uno-Sketch ergänzt (A-61, A-62 umgesetzt, ungetestet), A-64 bis A-66 neu. Insgesamt 48 Anforderungen. |
 | 13.11.2026 | 0.6 | Prüfsummen-Prüfung (A-47), Rollen im Methodenlauf (A-67), Endschalter, Lecksensor und Verbindungsüberwachung im Sketch (A-63, A-66, A-68). Neu: 9 Browser-Tests und 48 Prüfungen der Sketch-Logik am PC; die bisherigen Browser-Prüfungen von Hand sind damit automatisch. Insgesamt 50 Anforderungen. |
 | 13.11.2026 | 0.7 | Linux-Programm und Android-App (A-69 bis A-72); A-06 und A-07 um die neuen Wege erweitert. Insgesamt 54 Anforderungen. |
+| 14.11.2026 | 0.8 | Bauteile im Reiter „Messen“ (A-73), Bedienfenster im Fließbild (A-74), Sperre im Lauf nur noch für von der Methode gefahrene Bauteile (A-60). Insgesamt 56 Anforderungen. |
