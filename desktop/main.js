@@ -6,6 +6,7 @@
  */
 const { app, BrowserWindow, dialog, Menu, shell } = require('electron');
 const path = require('path');
+const { sortPorts, label } = require('./ports');
 let win = null, btCallback = null, btDevices = [], btTimer = null;
 
 function createWindow() {
@@ -19,14 +20,24 @@ function createWindow() {
   /* Serieller Anschluss (Arduino): Liste anzeigen und wählen lassen */
   ses.on('select-serial-port', async (event, portList, webContents, callback) => {
     event.preventDefault();
-    if (!portList.length) {
+    const { usb, others, auto } = sortPorts(portList);
+    if (!usb.length && !others.length) {
       await dialog.showMessageBox(win, { type: 'warning', title: 'ChromaLog', message: 'Kein serieller Anschluss gefunden.',
         detail: 'Ist der Arduino angesteckt? Unter Linux muss der Benutzer außerdem in der Gruppe „dialout“ sein:\nsudo usermod -a -G dialout $USER  (danach neu anmelden)' });
       callback(''); return;
     }
-    const labels = portList.map(p => (p.displayName || p.portName || p.portId) + (p.vendorId ? '  [' + p.vendorId + ':' + p.productId + ']' : ''));
-    const r = await dialog.showMessageBox(win, { type: 'question', title: 'ChromaLog', message: 'Anschluss wählen', buttons: labels.concat('Abbrechen'), cancelId: labels.length, defaultId: 0 });
-    callback(r.response < labels.length ? portList[r.response].portId : '');
+    if (auto) { callback(auto.portId); return; }
+    /* erst die USB-Geräte; die vielen alten Anschlüsse (ttyS…) nur auf Wunsch und höchstens zwölf auf einmal */
+    const pick = async (list, more, message, detail) => {
+      const shown = list.slice(0, 12), labels = shown.map(label), extra = more ? ['Andere Anschlüsse zeigen …'] : [];
+      const r = await dialog.showMessageBox(win, { type: 'question', title: 'ChromaLog', message, detail, buttons: labels.concat(extra, 'Abbrechen'), cancelId: labels.length + extra.length, defaultId: 0 });
+      return r.response < labels.length ? shown[r.response] : (more && r.response === labels.length ? 'more' : null);
+    };
+    let choice = usb.length ? await pick(usb, others.length > 0, 'Anschluss des Arduino wählen', 'Der Arduino heißt unter Linux meist ttyACM0 (Original-Uno) oder ttyUSB0 (Nachbau mit CH340).')
+      : 'more';
+    if (choice === 'more') choice = await pick(others, false, usb.length ? 'Andere Anschlüsse' : 'Kein USB-Gerät gefunden',
+      usb.length ? '' : 'Der Arduino wurde nicht als USB-Gerät erkannt. Ist er angesteckt, und ist das Kabel ein Datenkabel? Hier stehen nur die übrigen Anschlüsse des Rechners.');
+    callback(choice && choice !== 'more' ? choice.portId : '');
   });
   ses.setPermissionCheckHandler((wc, permission) => permission === 'serial' || permission === 'bluetooth' || permission === 'clipboard-sanitized-write' || permission === 'fullscreen');
   ses.setDevicePermissionHandler(details => details.deviceType === 'serial');

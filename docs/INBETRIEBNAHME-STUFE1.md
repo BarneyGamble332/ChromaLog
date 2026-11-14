@@ -31,6 +31,11 @@ Ohne MOSFET leuchtet die LED dauernd; dann zählt für den Dunkelwert das Ausste
 - **Linux-PC:** ChromaLog starten (Programm oder Chrome/Chromium mit https://barneygamble332.github.io/ChromaLog/), im Reiter „Messen“ auf „Mit Arduino verbinden (USB)“ klicken und den Anschluss wählen. Erscheint kein Anschluss: `sudo usermod -a -G dialout $USER`, neu anmelden.
 - **Handy:** Arduino mit USB-OTG-Adapter anstecken, in der App „Mit Arduino verbinden (USB)“ antippen und den Zugriff erlauben.
 
+**Welcher Anschluss ist der Arduino?** Unter Linux heißt er `ttyACM0` (Original-Uno) oder `ttyUSB0` (Nachbau mit CH340-Chip); die Arduino IDE zeigt denselben Namen als `/dev/ttyACM0` bzw. `/dev/ttyUSB0`. Linux meldet daneben rund 30 alte Anschlüsse `ttyS0` bis `ttyS31`, die es am Rechner meist gar nicht gibt.
+- ChromaLog bietet deshalb zuerst nur USB-Geräte an. Im Linux-Programm wird ein einzelner erkannter Arduino ohne Nachfrage genommen.
+- Steht der Arduino nicht in der Liste: „Arduino nicht in der Liste? Alle Anschlüsse zeigen“ wählen.
+- Fehlt er auch dort: Arduino IDE schließen, Kabel neu stecken, im Terminal `ls /dev/ttyACM* /dev/ttyUSB*` prüfen. Chromium aus dem Snap-Paket braucht einmalig `sudo snap connect chromium:raw-usb`.
+
 Nach dem Verbinden startet der Uno neu. Unter „System“ zeigt die Geräte-Konsole dann `READY ChromaLog-Uno 0.3`. Steht dort `# ADS1115 nicht gefunden`, stimmt die Verdrahtung von A4/A5, 5 V oder GND nicht.
 
 Im Browser und im Linux-Programm verbindet sich ChromaLog beim nächsten Start von selbst wieder mit dem zuletzt benutzten Anschluss.

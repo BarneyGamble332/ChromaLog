@@ -309,7 +309,7 @@ const FAKE_SERIAL = `(() => { const enc = new TextEncoder();
     open(o) { this.opened = o; let ctl; this.readable = new ReadableStream({ start(c) { ctl = c; } }); this.push = txt => ctl.enqueue(enc.encode(txt));
       const self = this; this.writable = new WritableStream({ write(chunk) { self.written.push(new TextDecoder().decode(chunk)); } }); return Promise.resolve(); },
     close() { return Promise.resolve(); } };
-  Object.defineProperty(navigator, 'serial', { configurable: true, value: { getPorts: () => Promise.resolve(localStorage.getItem('fakeGranted') ? [fakePort] : []), requestPort: () => Promise.resolve(fakePort) } }); })();`;
+  Object.defineProperty(navigator, 'serial', { configurable: true, value: { getPorts: () => Promise.resolve(localStorage.getItem('fakeGranted') ? [fakePort] : []), requestPort: o => { (window.fakeAsked = window.fakeAsked || []).push(o); return window.fakeCancel ? Promise.reject(new DOMException('No port selected', 'NotFoundError')) : Promise.resolve(fakePort); } } }); })();`;
 
 test('A-78 Start ohne Simulation: kein Simulator, keine Beispieldaten, Aufbau und Methode für das Gerät', async () => {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'de-DE' });
@@ -332,7 +332,11 @@ test('A-79 Arduino über USB (nachgebildeter Anschluss): verbinden, Detektor bed
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'de-DE' }); await ctx.addInitScript(FAKE_SERIAL);
   const p = await ctx.newPage(), errors = []; p.on('pageerror', e => errors.push(String(e)));
   await p.goto(BASE + '#messen'); await p.waitForFunction("typeof CTL !== 'undefined' && CTL.layouts.length && !document.querySelector('#connCard').hidden");
-  await p.click('#btnQuickUsb'); await p.waitForFunction("S.dev && S.dev.kind === 'usb'");
+  /* Auswahl abgebrochen (z. B. weil der Arduino nicht in der Liste stand): Hinweis auf „Alle Anschlüsse zeigen“ */
+  await p.evaluate('window.fakeCancel = true'); await p.click('#btnQuickUsb'); await p.waitForFunction("document.querySelector('#connHint2').textContent.includes('ttyACM0')");
+  assert.ok(await p.evaluate("fakeAsked[0].filters.some(f => f.usbVendorId === 0x2341) && fakeAsked[0].filters.some(f => f.usbVendorId === 0x1a86)"), 'zuerst nur Arduino und übliche USB-Wandler');
+  await p.evaluate('window.fakeCancel = false'); await p.click('#btnQuickAll'); await p.waitForFunction("S.dev && S.dev.kind === 'usb'");
+  assert.deepEqual(await p.evaluate('fakeAsked[1]'), {}, '„Alle Anschlüsse zeigen“ fragt ohne Filter');
   assert.equal(await p.evaluate('fakePort.opened.baudRate'), 115200);
   await p.evaluate("fakePort.push('READY ChromaLog-Uno 0.3\\r\\nD,1.000,0.010000,,,22.50,,,\\r\\nV,uv_i,2.1000\\r\\nV,uv_'); fakePort.push('r,2.5000\\r\\n')");
   await p.waitForFunction('S.last && CTL.meas.uv_r === 2.5');

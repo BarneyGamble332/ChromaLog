@@ -169,10 +169,14 @@ function simulateRun(method, sample) {
   return d;
 }
 
+/* USB-Hersteller der üblichen Arduino-Boards und Wandler-Chips: damit zeigt der Browser nur diese Geräte zur Auswahl */
+const SERIAL_USB_FILTERS = [0x2341, 0x2a03, 0x1a86, 0x0403, 0x10c4, 0x067b, 0x239a, 0x303a, 0x1b4f, 0x16c0].map(v => ({ usbVendorId: v }));
+
 class SerialDevice {
   constructor(baud) { this.kind = 'usb'; this.baud = baud || 115200; this.onLine = () => {}; this.onClose = () => {}; }
-  async connect(port) {
-    this.port = port || await navigator.serial.requestPort();     /* port: schon freigegebener Anschluss (automatisches Wiederverbinden) */
+  async connect(port, all) {
+    /* port: schon freigegebener Anschluss (automatisches Wiederverbinden); all: auch Anschlüsse ohne bekannten USB-Wandler anbieten */
+    this.port = port || await navigator.serial.requestPort(all ? {} : { filters: SERIAL_USB_FILTERS });
     await this.port.open({ baudRate: this.baud });
     this.writer = this.port.writable.getWriter();
     this.alive = true; this.readLoop();

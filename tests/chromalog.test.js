@@ -302,3 +302,20 @@ test('A-77 Basislinie: Drift, Rauschen und Spanne (für den Detektortest)', () =
   assert.equal(baselineStats([0, 1], [1, 2]), null, 'zu wenige Punkte');
   assert.deepEqual(C.configCommands([{ key: 'messdiode', kind: 'display', source: 'V:uv_i', fw: 'NONE' }]), [], 'vom Gerät gemeldete Werte werden nicht angemeldet');
 });
+
+test('A-82 Linux-Programm: der Arduino steht in der Auswahl vorn, alte Anschlüsse sind zurückgestellt', () => {
+  const { sortPorts, label } = require('../desktop/ports.js');
+  const legacy = Array.from({ length: 32 }, (_, i) => ({ portId: 'id' + i, portName: 'ttyS' + i }));
+  const uno = { portId: 'u', portName: 'ttyACM0', displayName: 'Arduino Uno', vendorId: '9025', productId: '67' };          /* 9025 = 0x2341 */
+  let r = sortPorts(legacy.slice(0, 20).concat(uno, legacy.slice(20)));
+  assert.equal(r.usb.length, 1); assert.equal(r.auto, uno, 'ein einziges bekanntes USB-Gerät wird ohne Nachfrage genommen'); assert.equal(r.others.length, 32);
+  assert.deepEqual(r.others.slice(0, 3).map(p => p.portName), ['ttyS0', 'ttyS1', 'ttyS2'], 'ttyS der Nummer nach, nicht 1, 10, 11');
+  assert.equal(label(uno), 'ttyACM0 – Arduino Uno  [Arduino 2341:0043]');
+  const clone = { portId: 'c', portName: 'ttyUSB0', vendorId: '0x1a86', productId: '0x7523' }, modem = { portId: 'm', portName: 'ttyACM1', vendorId: '4660', productId: '1' };
+  r = sortPorts([modem, legacy[0], clone, { portId: 'b', portName: 'rfcomm0' }]);
+  assert.equal(r.auto, null, 'bei zwei USB-Geräten wird gefragt'); assert.deepEqual(r.usb.map(p => p.portName), ['ttyUSB0', 'ttyACM1'], 'bekannter Wandler zuerst');
+  assert.deepEqual(r.others.map(p => p.portName), ['rfcomm0', 'ttyS0'], 'Bluetooth-Anschluss vor den alten Anschlüssen'); assert.equal(label(clone), 'ttyUSB0  [CH340 1a86:7523]');
+  assert.equal(sortPorts([modem]).auto, null, 'unbekanntes USB-Gerät wird nicht ungefragt genommen');
+  assert.equal(sortPorts([{ portId: 'x', portName: 'ttyACM0' }]).usb.length, 1, 'ttyACM ohne Herstellerangabe zählt als USB');
+  assert.deepEqual(sortPorts([]), { usb: [], others: [], auto: null });
+});

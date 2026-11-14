@@ -4,7 +4,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const CH = ['uv', 'cond', 'press', 'temp', 'flow', 'b'];
-const APP_VERSION = '0.10';
+const APP_VERSION = '0.11';
 /* Vorführbetrieb: die Adresse mit ?demo=1 startet mit Simulator und Beispiel-Lauf. Ohne das startet die App für das echte Gerät. */
 const DEMO = typeof location !== 'undefined' && /[?&]demo(=|&|$)/.test(location.search);
 
@@ -57,7 +57,7 @@ function mcmd(name, value) {
   methodCommands(CTL.layouts.length ? ctlL().parts : [], S.mstate, name, value).forEach(o => { if (o.key) CTL.values[o.key] = o.value; cmd(o.cmd); });
 }
 function connHint(text) { $('#connHint').textContent = text; $('#connHint2').textContent = text; }
-async function connectDevice(kind, port) {
+async function connectDevice(kind, port, all) {
   if (S.phase !== 'idle') return;
   const native = isNativeApp(); connHint('');
   if (kind === 'usb' && !native && !('serial' in navigator)) { connHint(t('usb_unsupported')); return; }
@@ -66,9 +66,9 @@ async function connectDevice(kind, port) {
   const dev = kind === 'usb' ? (native ? new AndroidSerialDevice(+$('#selBaud').value) : new SerialDevice(+$('#selBaud').value)) : kind === 'ble' ? (native ? new AndroidBleDevice() : new BleDevice()) : new SimDevice();
   dev.onLine = onLine;
   dev.onClose = () => { if (S.dev === dev) { S.dev = null; S.last = null; if (S.phase !== 'idle') finishRun(true); toast(t('conn_lost'), true); logAudit('disconnect', 'lost'); S.dirty = true; } };
-  try { await dev.connect(port); }
+  try { await dev.connect(port, all); }
   catch (e) {
-    if (e && e.name === 'NotFoundError') return;
+    if (e && e.name === 'NotFoundError') { if (kind === 'usb' && !all) connHint(t('usb_notlisted')); return; }
     connHint((e && e.name === 'NoDeviceError') ? t('usb_nodevice') : (e && e.name === 'SecurityError') ? t(kind === 'ble' ? 'ble_blocked' : 'usb_blocked') : t('conn_failed') + ' ' + (e && e.message || ''));
     return;
   }
@@ -616,7 +616,7 @@ function bind() {
     S.runs = S.runs.filter(r => !r.simulated); if (S.aRun && S.aRun.simulated) { S.aRun = null; S.aRes = null; }
     await logAudit('simulated runs deleted', String(sim.length)); renderRuns(); fillRunSelect(); renderAnalysis();
   };
-  $('#btnQuickUsb').onclick = () => connectDevice('usb'); $('#btnQuickBle').onclick = () => connectDevice('ble'); $('#btnQuickSim').onclick = () => connectDevice('sim');
+  $('#btnQuickUsb').onclick = () => connectDevice('usb'); $('#btnQuickAll').onclick = () => connectDevice('usb', null, true); $('#btnConnectAll').onclick = () => connectDevice('usb', null, true); $('#btnQuickBle').onclick = () => connectDevice('ble'); $('#btnQuickSim').onclick = () => connectDevice('sim');
   $('#simOff').onclick = disconnectDevice;
   $('#runFile').onchange = e => { const f = e.target.files[0]; if (f) importRun(f); e.target.value = ''; };
   $('#aSel').onchange = e => openAnalysis(e.target.value);
