@@ -39,6 +39,13 @@ const CTL_LIB = [
   { lib: 'flow', group: 'hplc', de: 'Fluss gesamt (Befehl FLOW)', en: 'Total flow (FLOW command)', kind: 'slider', key: 'fluss', cmd: 'FLOW {v}', fb: 'flow', min: 0, max: 2, step: 0.05, unit: 'ml/min', safe: '0', stop: true },
   { lib: 'pctb', group: 'hplc', de: 'Anteil B (Befehl PCTB)', en: 'Solvent B (PCTB command)', kind: 'slider', key: 'anteilb', cmd: 'PCTB {v}', fb: 'b', min: 0, max: 100, step: 1, unit: '%', safe: '' },
   { lib: 'inj', group: 'hplc', de: 'Injektionsventil (Befehl VALVE)', en: 'Injection valve (VALVE command)', kind: 'positions', key: 'inj', cmd: 'VALVE {v}', fb: 'valve', positions: [{ name: 'Laden', value: 'LOAD' }, { name: 'Injizieren', value: 'INJECT' }], safe: 'LOAD' },
+  { lib: 'column', group: 'passive', de: 'Säule', en: 'Column', kind: 'symbol', key: 'saeule' },
+  { lib: 'tee', group: 'passive', de: 'T-Stück / Mischer', en: 'Tee / mixer', kind: 'symbol', key: 'mischer' },
+  { lib: 'bottle', group: 'passive', de: 'Laufmittelflasche', en: 'Solvent bottle', kind: 'symbol', key: 'flasche' },
+  { lib: 'sample', group: 'passive', de: 'Probe', en: 'Sample', kind: 'symbol', key: 'probe' },
+  { lib: 'spe', group: 'passive', de: 'SPE-Kartusche', en: 'SPE cartridge', kind: 'symbol', key: 'spe' },
+  { lib: 'loop', group: 'passive', de: 'Probenschleife', en: 'Sample loop', kind: 'symbol', key: 'schleife' },
+  { lib: 'waste', group: 'passive', de: 'Abfall', en: 'Waste', kind: 'symbol', key: 'abfall' },
   { lib: 'custom', group: 'free', de: 'Eigenes Bauteil', en: 'Custom component', kind: 'switch', key: 'teil', safe: '' }
 ];
 
@@ -50,7 +57,7 @@ function partCommand(p, v) {
 /* Anmeldung aller Bauteile ohne eigenen Befehl beim Gerät. Endschalter kommen zuletzt, weil sie sich auf andere Bauteile beziehen. */
 function configCommands(parts) {
   const fwOf = p => p.fw || CTL_FW[p.kind];
-  return parts.filter(p => !p.cmd && !(p.kind === 'display' && String(p.source || '').startsWith('D:')))
+  return parts.filter(p => !p.cmd && p.kind !== 'symbol' && !(p.kind === 'display' && String(p.source || '').startsWith('D:')))
     .slice().sort((x, y) => (fwOf(x) === 'LIMIT') - (fwOf(y) === 'LIMIT'))
     .map(p => { const fw = fwOf(p);
       return 'CFG ' + p.key + ' ' + fw + ' ' + (String(p.pin || '').replace(/\s+/g, '') || '-') +
@@ -82,7 +89,7 @@ function methodCommands(parts, st, name, value) {
 function partLockedInRun(p) { return !!p.role || /^(FLOW|PCTB|VALVE)\b/i.test(p.cmd || ''); }
 /* Was bei „Alles stopp“ gesendet wird */
 function safeCommands(parts) {
-  return parts.filter(p => p.kind !== 'display' && p.kind !== 'button' && p.safe != null && String(p.safe).trim() !== '')
+  return parts.filter(p => p.kind !== 'display' && p.kind !== 'button' && p.kind !== 'symbol' && p.safe != null && String(p.safe).trim() !== '')
     .map(p => ({ key: p.key, value: String(p.safe).trim(), cmd: partCommand(p, String(p.safe).trim()) }));
 }
 /* Messwert lesen: "D:press" = Feld der Datenzeile, "V:pumpe" = Rohwert eines Bauteils,
@@ -118,19 +125,35 @@ function uniqueKey(base, parts) {
 function parsePositions(text) {
   return String(text || '').split(/[;\n]/).map(s => s.trim()).filter(Boolean).map(s => { const i = s.indexOf('='); return i < 0 ? { name: s, value: s } : { name: s.slice(0, i).trim(), value: s.slice(i + 1).trim() }; });
 }
-/* Leitung zwischen zwei Kacheln (x, y, w, h): verlässt die Kachel an der Seite, die zum Ziel zeigt */
+/* Leitung zwischen zwei Symbolen (x, y, w, h): rechtwinklig geführt, verlässt das Symbol an der Seite, die zum Ziel zeigt */
 function linkPath(a, b) {
-  const acx = a.x + a.w / 2, acy = a.y + a.h / 2, bcx = b.x + b.w / 2, bcy = b.y + b.h / 2, dx = bcx - acx, dy = bcy - acy;
-  let sx, sy, ex, ey, c1, c2;
+  const acx = a.x + a.w / 2, acy = a.y + a.h / 2, bcx = b.x + b.w / 2, bcy = b.y + b.h / 2, dx = bcx - acx, dy = bcy - acy, r = v => Math.round(v);
+  let pts;
   if (Math.abs(dx) >= Math.abs(dy)) {
-    sx = dx >= 0 ? a.x + a.w : a.x; sy = acy; ex = dx >= 0 ? b.x : b.x + b.w; ey = bcy;
-    const c = Math.max(30, Math.abs(ex - sx) / 2) * (dx >= 0 ? 1 : -1); c1 = [sx + c, sy]; c2 = [ex - c, ey];
+    const sx = dx >= 0 ? a.x + a.w : a.x, ex = dx >= 0 ? b.x : b.x + b.w, mx = (sx + ex) / 2;
+    pts = Math.abs(acy - bcy) < 1 ? [[sx, acy], [ex, bcy]] : [[sx, acy], [mx, acy], [mx, bcy], [ex, bcy]];
   } else {
-    sx = acx; sy = dy >= 0 ? a.y + a.h : a.y; ex = bcx; ey = dy >= 0 ? b.y : b.y + b.h;
-    const c = Math.max(30, Math.abs(ey - sy) / 2) * (dy >= 0 ? 1 : -1); c1 = [sx, sy + c]; c2 = [ex, ey - c];
+    const sy = dy >= 0 ? a.y + a.h : a.y, ey = dy >= 0 ? b.y : b.y + b.h, my = (sy + ey) / 2;
+    pts = Math.abs(acx - bcx) < 1 ? [[acx, sy], [bcx, ey]] : [[acx, sy], [acx, my], [bcx, my], [bcx, ey]];
   }
-  const r = v => Math.round(v);
-  return 'M' + r(sx) + ' ' + r(sy) + ' C' + r(c1[0]) + ' ' + r(c1[1]) + ' ' + r(c2[0]) + ' ' + r(c2[1]) + ' ' + r(ex) + ' ' + r(ey);
+  return pts.map((q, i) => (i ? 'L ' : 'M') + r(q[0]) + ' ' + r(q[1])).join(' ');
+}
+/* Symbole im Raster aufräumen: verbundene Ketten von links nach rechts, der Rest darunter. perRow = Symbole je Zeile */
+function tidyLayout(parts, links, perRow, dx, dy) {
+  const byId = {}, next = {}, hasIn = {}; parts.forEach(p => { byId[p.id] = p; });
+  (links || []).forEach(l => { if (byId[l.from] && byId[l.to]) { (next[l.from] = next[l.from] || []).push(l.to); hasIn[l.to] = true; } });
+  const order = [], seen = {};
+  const walk = id => { if (seen[id]) return; seen[id] = true; order.push(id); (next[id] || []).forEach(walk); };
+  parts.filter(p => next[p.id] && !hasIn[p.id]).forEach(p => walk(p.id));      /* Kettenanfänge */
+  parts.filter(p => next[p.id] || hasIn[p.id]).forEach(p => walk(p.id));        /* Ringe */
+  const linked = order.length; parts.forEach(p => walk(p.id));
+  let col = 0, row = 0;
+  order.forEach((id, i) => {
+    if (i === linked && col) { col = 0; row++; }                                   /* unverbundene Teile beginnen eine neue Zeile */
+    byId[id].x = 20 + col * dx; byId[id].y = 20 + row * dy;
+    if (++col >= perRow) { col = 0; row++; }
+  });
+  return parts;
 }
 
-if (typeof module !== 'undefined') module.exports = { partLockedInRun, CTL_LIB, CTL_KINDS, CTL_FW, CTL_FW_KINDS, CTL_ROLES, methodCommands, partReading, partCommand, configCommands, safeCommands, readSource, stepState, uniqueKey, parsePositions, linkPath };
+if (typeof module !== 'undefined') module.exports = { tidyLayout, partLockedInRun, CTL_LIB, CTL_KINDS, CTL_FW, CTL_FW_KINDS, CTL_ROLES, methodCommands, partReading, partCommand, configCommands, safeCommands, readSource, stepState, uniqueKey, parsePositions, linkPath };

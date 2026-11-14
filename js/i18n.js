@@ -22,7 +22,7 @@ const I18N = {
     tab_ctl: 'Steuerung', ctl_layout: 'Aufbau', ctl_edit: 'Bearbeiten', ctl_done: 'Fertig', ctl_add: '+ Bauteil', ctl_stopall: 'Alles stopp', ctl_newlayout: 'Neuer Aufbau', ctl_dellayout: 'Aufbau löschen',
     ctl_export: 'Exportieren', ctl_import: 'Importieren', ctl_rename: 'Name des Aufbaus',
     ctl_edit_hint: 'Bearbeiten: Bauteil an der Kopfzeile verschieben · „Verbinden“ und dann das Ziel anklicken zieht eine Leitung · eine Leitung anklicken löscht sie.',
-    ctl_use_hint: 'Ein Bauteil anklicken, um es zu bedienen. Zum Verschieben, Verbinden und Ändern auf „Bearbeiten“ gehen.',
+    ctl_use_hint: 'Ein Symbol antippen, um das Bauteil zu bedienen. Zum Aufbauen und Ändern auf „Bearbeiten“ gehen.',
     ctl_on: 'An', ctl_off: 'Aus', ctl_deliver: 'Fördern', ctl_fill: 'Füllen', ctl_stop: 'Stopp', ctl_link: 'Verbinden', ctl_link_pick: 'Ziel anklicken …', ctl_change: 'Ändern',
     ctl_setpoint: 'Soll', ctl_actual: 'Ist', ctl_level: 'Füllstand', ctl_of: 'von',
     ctl_lib: 'Bauteil aus der Bibliothek wählen', ctl_part: 'Bauteil', ctl_key: 'Kurzname im Befehl', ctl_pin: 'Arduino-Pin(s)', ctl_kind: 'Art', ctl_min: 'Kleinster Wert', ctl_max: 'Größter Wert',
@@ -42,6 +42,10 @@ const I18N = {
     usb_nodevice: 'Kein USB-Gerät gefunden. Den Arduino mit einem USB-OTG-Adapter am Handy anstecken und noch einmal verbinden.', t_savedto: 'Gespeichert in Dokumente/ChromaLog:',
     mp_title: 'Bauteile', mp_edit: 'Bauteile im Reiter „Steuerung“ anlegen und ändern', ctl_onmess: 'Im Reiter „Messen“ anzeigen',
     ctl_state_deliver: 'fördert', ctl_state_fill: 'füllt', ctl_state_idle: 'steht', ctl_close: 'Schließen',
+    tool_move: 'Verschieben', tool_link: 'Leitung ziehen', tool_del: 'Löschen', ctl_tidy: 'Aufräumen', ctl_fit: 'Einpassen', ctl_zoom_in: 'Größer', ctl_zoom_out: 'Kleiner',
+    hint_move: 'Verschieben: Symbol mit dem Finger ziehen. Antippen öffnet seine Einstellungen.', hint_link: 'Leitung ziehen: erst das Start-Symbol antippen, dann das Ziel. Vom Ziel aus geht es gleich weiter; ein Tipp ins Leere beendet.',
+    hint_link2: 'Jetzt das Ziel antippen …', hint_del: 'Löschen: ein Symbol oder eine Leitung antippen.', g_passive: 'Symbole ohne Funktion (nur fürs Fließbild)', k_symbol: 'Symbol', ctl_icon: 'Symbol',
+    ctl_manage: 'Aufbau umbenennen, exportieren, importieren, löschen', hint_small: 'Zwei Finger zoomen. „Aufräumen“ (unter „Bearbeiten“) ordnet die Symbole passend für diesen Bildschirm an.',
     conn_none: 'Kein Gerät', conn_sim: 'Simulator', conn_usb: 'USB verbunden', conn_ble: 'Bluetooth verbunden',
     ph_idle: 'Bereit', ph_equil: 'Equilibrieren', ph_run: 'Lauf läuft', ph_done: 'Fertig',
     monitor: 'Basislinien-Monitor (letzte 5 min)', auto: 'Auto', grad_overlay: '%B anzeigen',
@@ -101,7 +105,7 @@ const I18N = {
     tab_ctl: 'Control', ctl_layout: 'Setup', ctl_edit: 'Edit', ctl_done: 'Done', ctl_add: '+ Component', ctl_stopall: 'Stop all', ctl_newlayout: 'New setup', ctl_dellayout: 'Delete setup',
     ctl_export: 'Export', ctl_import: 'Import', ctl_rename: 'Setup name',
     ctl_edit_hint: 'Editing: drag a component by its header · “Connect”, then click the target to draw a line · click a line to delete it.',
-    ctl_use_hint: 'Click a component to operate it. Switch to “Edit” to move, connect or change them.',
+    ctl_use_hint: 'Tap a symbol to operate the component. Switch to “Edit” to build and change the setup.',
     ctl_on: 'On', ctl_off: 'Off', ctl_deliver: 'Deliver', ctl_fill: 'Fill', ctl_stop: 'Stop', ctl_link: 'Connect', ctl_link_pick: 'Click the target …', ctl_change: 'Change',
     ctl_setpoint: 'Set', ctl_actual: 'Actual', ctl_level: 'Level', ctl_of: 'of',
     ctl_lib: 'Choose a component from the library', ctl_part: 'Component', ctl_key: 'Short name in the command', ctl_pin: 'Arduino pin(s)', ctl_kind: 'Kind', ctl_min: 'Minimum', ctl_max: 'Maximum',
@@ -121,6 +125,10 @@ const I18N = {
     usb_nodevice: 'No USB device found. Plug the Arduino into the phone with a USB OTG adapter and connect again.', t_savedto: 'Saved to Documents/ChromaLog:',
     mp_title: 'Components', mp_edit: 'Add and change components in the “Control” tab', ctl_onmess: 'Show in the “Acquire” tab',
     ctl_state_deliver: 'delivering', ctl_state_fill: 'filling', ctl_state_idle: 'stopped', ctl_close: 'Close',
+    tool_move: 'Move', tool_link: 'Draw line', tool_del: 'Delete', ctl_tidy: 'Tidy up', ctl_fit: 'Fit', ctl_zoom_in: 'Larger', ctl_zoom_out: 'Smaller',
+    hint_move: 'Move: drag a symbol with your finger. A tap opens its settings.', hint_link: 'Draw line: tap the start symbol, then the target. It continues from the target; tap empty space to finish.',
+    hint_link2: 'Now tap the target …', hint_del: 'Delete: tap a symbol or a line.', g_passive: 'Symbols without function (flow diagram only)', k_symbol: 'Symbol', ctl_icon: 'Symbol',
+    ctl_manage: 'Rename, export, import or delete the setup', hint_small: 'Pinch to zoom. “Tidy up” (under “Edit”) arranges the symbols to fit this screen.',
     conn_none: 'No device', conn_sim: 'Simulator', conn_usb: 'USB connected', conn_ble: 'Bluetooth connected',
     ph_idle: 'Ready', ph_equil: 'Equilibrating', ph_run: 'Run in progress', ph_done: 'Done',
     monitor: 'Baseline monitor (last 5 min)', auto: 'Auto', grad_overlay: 'Show %B',
@@ -166,6 +174,7 @@ function applyI18n() {
   document.documentElement.lang = LANG;
   document.querySelectorAll('[data-i18n]').forEach(e => { e.textContent = t(e.dataset.i18n); });
   document.querySelectorAll('[data-i18n-ph]').forEach(e => { e.placeholder = t(e.dataset.i18nPh); });
+  document.querySelectorAll('[data-i18n-title]').forEach(e => { e.title = t(e.dataset.i18nTitle); e.setAttribute('aria-label', e.title); });
 }
 function fmt(v, d) {
   if (v == null || !isFinite(v)) return '–';

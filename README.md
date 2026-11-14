@@ -2,7 +2,7 @@
 
 Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft als Web-App im Browser (Linux-PC, Android) und später als Android-App.
 
-## Stand Version 0.8
+## Stand Version 0.9
 - Live-Chromatogramm in Echtzeit: UV 275 nm, dazu Druck, Leitfähigkeit, Temperatur und Gradient
 - Gerätesteuerung: Lauf mit Equilibrieren, Autozero, Injektion, Gradient-Tabelle, Ventil-Ereignissen und Druckabschaltung; Handsteuerung
 - Anschlüsse: Simulator (ohne Hardware), USB seriell, Bluetooth Low Energy (Nordic UART oder HM-10); WLAN ist vorbereitet
@@ -13,7 +13,7 @@ Chromatographie-Software für die Mini-HPLC (Projekt Gewässermessung). Läuft a
 - Zoomfenster: Rechteck aufziehen vergrößert den Ausschnitt
 - Vergleich: bis zu 5 weitere Läufe über das Chromatogramm legen
 - Manuelle Integration: Integrationsgrenzen selbst ziehen, Peaks entfernen; die Änderungen werden mit dem Ergebnis gespeichert
-- Steuerung: Fließbild mit frei angelegten Bauteilen aus einer Bibliothek (Pumpen, Ventile, Heizung, Schalter, Sensoren), verschiebbar und mit Leitungen verbindbar; mehrere Aufbauten; „Alles stopp“; einfache Abläufe (Stellen, Warten, Warten bis)
+- Steuerung: Fließbild mit Symbolen für frei angelegte Bauteile aus einer Bibliothek (Pumpen, Ventile, Heizung, Schalter, Sensoren) und für Teile ohne Funktion (Säule, Flasche, Abfall …); Werkzeuge zum Verschieben, Leitung ziehen und Löschen, Zoom und „Aufräumen“, auch am Handy bedienbar; mehrere Aufbauten; „Alles stopp“; einfache Abläufe (Stellen, Warten, Warten bis)
 - Die Bauteile des Aufbaus erscheinen auch im Reiter „Messen“ und lassen sich dort bedienen; im Fließbild öffnet ein Klick auf ein Bauteil sein Bedienfenster
 - Sequenzen: Probenliste (Blindwert, Standards, Proben) läuft nacheinander ab, auf Wunsch mit Bestätigung vor jeder Probe
 - Messbericht zum Drucken oder als PDF/HTML speichern

@@ -114,23 +114,61 @@ test('A-47 Veränderte Rohdaten werden beim Import und beim Öffnen erkannt', as
 test('A-58 Fließbild: verschieben, verbinden, Bauteil anlegen, Leitung löschen, bleibt erhalten', async () => {
   const o = await open('#steuerung'), p = o.page;
   await p.waitForSelector('#flowInner .node'); await p.click('#ctlEdit');
-  const before = await p.evaluate("({ links: ctlL().links.length, parts: ctlL().parts.length, y: ctlL().parts.find(q => q.key === 'anteilb').y })");
-  const bb = await p.locator('#flowInner .node:has-text("Anteil B") .nh').boundingBox();
-  await p.mouse.move(bb.x + 40, bb.y + 10); await p.mouse.down(); await p.mouse.move(bb.x + 40, bb.y + 130, { steps: 5 }); await p.mouse.up();
-  await p.locator('#flowInner .node:has-text("Anteil B") button:has-text("Verbinden")').click();
-  await p.locator('#flowInner .node:has-text("Pumpe (Fluss gesamt)") .nn').click();
+  const before = await p.evaluate("({ links: ctlL().links.length, parts: ctlL().parts.length, y: ctlL().parts.find(q => q.key === 'anteilb').y, zoom: CTL.zoom })");
+  assert.equal(before.zoom, 1, 'am großen Bildschirm ohne Verkleinerung');
+  const bb = await p.locator('#flowInner .node:has-text("Anteil B")').boundingBox();
+  await p.mouse.move(bb.x + 60, bb.y + 30); await p.mouse.down(); await p.mouse.move(bb.x + 60, bb.y + 150, { steps: 5 }); await p.mouse.up();
+  assert.equal(await p.evaluate("document.querySelector('#partDlg').open"), false, 'Ziehen öffnet keine Einstellungen');
+  await p.click('#toolLink');
+  await p.locator('#flowInner .node:has-text("Anteil B")').click(); await p.locator('#flowInner .node:has-text("Pumpe (Fluss gesamt)")').click();
   await p.click('#ctlAdd'); await p.locator('#libDlg button[data-lib="leak"]').click(); await p.locator('#partDlg button[data-x="ok"]').click();
-  let a = await p.evaluate("({ links: ctlL().links.length, parts: ctlL().parts.length, y: ctlL().parts.find(q => q.key === 'anteilb').y, cfg: S.console.filter(l => l.includes('CFG leck')).pop() })");
+  const a = await p.evaluate("({ links: ctlL().links.length, parts: ctlL().parts.length, y: ctlL().parts.find(q => q.key === 'anteilb').y, cfg: S.console.filter(l => l.includes('CFG leck')).pop() })");
   assert.equal(a.links, before.links + 1); assert.equal(a.parts, before.parts + 1); assert.equal(a.y, before.y + 120); assert.equal(a.cfg, '> CFG leck LIMIT 13 ALL 0');
-  const pt = await p.evaluate(`(() => { const r = document.querySelector('#flowSvg').getBoundingClientRect();
+  const freeLine = `(() => { const r = document.querySelector('#flowSvg').getBoundingClientRect();
     for (const h of document.querySelectorAll('#flowSvg path.hit')) { const q = h.getPointAtLength(h.getTotalLength() / 2), x = r.x + q.x, y = r.y + q.y; if (document.elementFromPoint(x, y) === h) return [x, y]; }
-    return null; })()`);
-  assert.ok(pt, 'eine frei liegende Leitung gefunden');
+    return null; })()`;
+  assert.equal(await p.evaluate(freeLine), null, 'Leitungen sind nur mit dem Werkzeug „Löschen“ antippbar');
+  await p.click('#toolDel'); const pt = await p.evaluate(freeLine); assert.ok(pt, 'eine frei liegende Leitung gefunden');
   await p.mouse.click(pt[0], pt[1]);
-  assert.equal(await p.evaluate('ctlL().links.length'), before.links, 'Klick auf die Leitung löscht sie');
+  assert.equal(await p.evaluate('ctlL().links.length'), before.links, 'Antippen der Leitung löscht sie');
   await p.reload(); await p.waitForFunction("typeof CTL !== 'undefined' && CTL.layouts.length");
   assert.equal(await p.evaluate('ctlL().parts.length'), before.parts + 1, 'Aufbau bleibt nach dem Neuladen erhalten');
   await done(o);
+});
+
+test('A-75 Fließbild am Handy: Symbole, Werkzeuge per Fingertipp, Leitungskette, passive Symbole, Aufräumen', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 400, height: 820 }, locale: 'de-DE', hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  const p = await ctx.newPage(), errors = []; p.on('pageerror', e => errors.push(String(e)));
+  await p.goto(URL + '#steuerung'); await p.waitForFunction("typeof S !== 'undefined' && S.dev && S.last"); await p.waitForSelector('#flowInner .node.sym svg');
+  assert.ok(await p.evaluate('CTL.zoom < 1 && CTL.zoom >= 0.55'), 'breiter Aufbau wird verkleinert, bleibt aber lesbar');
+  assert.equal(await p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, 'Seite läuft nicht seitlich über');
+  const node = n => p.locator('#flowInner .node:has-text("' + n + '")');
+  await p.tap('#ctlEdit'); await p.tap('#toolLink');
+  const l0 = await p.evaluate('ctlL().links.length');
+  await node('Autozero').tap(); await node('UV-LED').tap(); await node('Temperaturfühler').tap();
+  assert.equal(await p.evaluate('ctlL().links.length'), l0 + 2, 'drei Tipps ergeben eine Kette aus zwei Leitungen');
+  await node('UV-LED').tap();
+  assert.equal(await p.evaluate('ctlL().links.length'), l0 + 2, 'eine vorhandene Leitung wird nicht doppelt gezogen');
+  /* passives Symbol: kein Dialog, keine Anmeldung beim Gerät, nicht im Reiter „Messen“ */
+  await p.evaluate('S.console.length = 0'); await p.tap('#ctlAdd'); await p.locator('#libDlg button[data-lib="tee"]').tap();
+  assert.equal(await p.evaluate("document.querySelector('#partDlg').open"), false);
+  const tee = await p.evaluate("({ kind: ctlL().parts.at(-1).kind, cfg: S.console.some(l => l.includes('CFG')), mess: [...document.querySelectorAll('#mParts .nn')].some(e => e.textContent.includes('T-Stück')), tool: CTL.tool })");
+  assert.deepEqual(tee, { kind: 'symbol', cfg: false, mess: false, tool: 'move' });
+  /* Werkzeug „Verschieben“: Antippen öffnet die Einstellungen, dort lässt sich das Symbol wählen */
+  await node('T-Stück').tap(); await p.waitForSelector('#partDlg[open]');
+  await p.locator('#partDlg button[data-icon="waste"]').tap(); await p.fill('#pf_name', 'Auslass'); await p.locator('#partDlg button[data-x="ok"]').tap();
+  assert.deepEqual(await p.evaluate("({ icon: ctlL().parts.at(-1).icon, name: ctlL().parts.at(-1).name })"), { icon: 'waste', name: 'Auslass' });
+  /* Aufräumen: passt in die Bildschirmbreite, nichts liegt übereinander */
+  await p.tap('#ctlTidy');
+  const t = await p.evaluate("({ xs: ctlL().parts.map(q => q.x + ',' + q.y), maxX: Math.max(...ctlL().parts.map(q => q.x)) + 120, width: document.querySelector('#flow').clientWidth, zoom: CTL.zoom })");
+  assert.equal(new Set(t.xs).size, t.xs.length, 'kein Symbol liegt auf einem anderen'); assert.ok(t.maxX * t.zoom <= t.width + 1, 'passt ohne seitliches Schieben: ' + JSON.stringify(t));
+  /* Werkzeug „Löschen“ */
+  const n0 = await p.evaluate('ctlL().parts.length'); await p.tap('#toolDel'); await node('Auslass').tap(); await p.waitForSelector('#dlg[open]'); await p.tap('#dlgYes');
+  await p.waitForFunction('ctlL().parts.length === ' + (n0 - 1));
+  /* außerhalb von „Bearbeiten“ öffnet ein Tipp das Bedienfenster */
+  await p.tap('#ctlEdit'); await node('UV-LED').tap(); await p.waitForSelector('#opDlg[open]'); await p.locator('#opBody button:has-text("An")').tap();
+  assert.equal(await p.evaluate('CTL.values.led'), '1'); assert.ok(await p.evaluate("document.querySelector('#flowInner .node.sym.active .nn').textContent.length > 0"), 'eingeschaltetes Bauteil ist farbig');
+  assert.deepEqual(errors, []); await ctx.close();
 });
 
 test('A-59 / A-60 / A-63 / A-65 / A-74 Bedienfenster, Ablauf, „Alles stopp“, Sperre im Methodenlauf, Lecksensor, Neuanmeldung', async () => {
@@ -188,16 +226,17 @@ test('A-67 Methodenlauf fährt die Bauteile mit Rolle (Pumpe A/B, Injektionsvent
 test('A-73 Bauteile des Aufbaus erscheinen im Reiter „Messen“ und lassen sich dort bedienen', async () => {
   const o = await open('#messen'), p = o.page;
   await p.waitForSelector('#mParts .node');
-  assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), await p.evaluate('ctlL().parts.length'), 'alle Bauteile des Aufbaus');
+  const active = "ctlL().parts.filter(q => q.kind !== 'symbol').length";
+  assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), await p.evaluate(active), 'alle Bauteile des Aufbaus, ohne die Symbole ohne Funktion');
   assert.equal(await p.evaluate("document.querySelector('#manCard').hidden"), true, 'feste Handsteuerung ist dann ausgeblendet');
   await p.locator('#mParts .node:has-text("Säulenheizung") button:has-text("An")').click();
   await p.locator('#mParts .node:has-text("Injektionsventil") button:has-text("Injizieren")').click();
   await p.waitForFunction("S.last.valve === 'INJECT' && CTL.meas.heizung > 22.2", null, { timeout: 20000 });
   assert.equal(await p.evaluate('CTL.values.heizung'), 40);
-  assert.ok(await p.evaluate("document.querySelector('#mParts .node:nth-child(3) [data-live]').textContent !== '–'"), 'Messwerte laufen mit');
+  assert.ok(await p.evaluate("[...document.querySelectorAll('#mParts .node')].find(n => n.textContent.includes('Drucksensor')).querySelector('[data-live]').textContent !== '–'"), 'Messwerte laufen mit');
   /* Bauteil ausblenden, anderer Aufbau, leerer Aufbau */
   await p.evaluate("ctlL().parts.find(q => q.key === 'heizung').onMess = false; ctlRenderNodes()");
-  assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), await p.evaluate('ctlL().parts.length - 1'), 'ausgeblendetes Bauteil fehlt');
+  assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), await p.evaluate(active + ' - 1'), 'ausgeblendetes Bauteil fehlt');
   await p.evaluate("location.hash = '#steuerung'"); await p.selectOption('#ctlSel', { label: 'Stufe 1 – UV-Detektor' }); await p.evaluate("location.hash = '#messen'");
   assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), 4, 'Reiter Messen folgt dem gewählten Aufbau');
   await p.evaluate("ctlL().parts.length = 0; ctlRenderNodes()");

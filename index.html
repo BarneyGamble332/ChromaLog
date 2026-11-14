@@ -105,16 +105,31 @@
       <button class="btn primary" id="ctlAdd" type="button" data-i18n="ctl_add"></button>
       <button class="btn stopall" id="ctlStopAll" type="button" data-i18n="ctl_stopall"></button>
     </div>
-    <div class="toolbar nomb editbar" id="ctlEditBar" hidden>
-      <label class="inl"><span data-i18n="ctl_rename"></span> <input id="ctlName" type="text"></label>
-      <button class="btn" id="ctlExport" type="button" data-i18n="ctl_export"></button>
-      <label class="btn filebtn"><span data-i18n="ctl_import"></span><input id="ctlImport" type="file" accept=".json,application/json" hidden></label>
-      <button class="btn danger" id="ctlDel" type="button" data-i18n="ctl_dellayout"></button>
-    </div>
-    <p class="hint" id="ctlHint"></p>
+    <details class="manage" id="ctlEditBar" hidden>
+      <summary data-i18n="ctl_manage"></summary>
+      <div class="toolbar nomb">
+        <label class="inl"><span data-i18n="ctl_rename"></span> <input id="ctlName" type="text"></label>
+        <button class="btn" id="ctlExport" type="button" data-i18n="ctl_export"></button>
+        <label class="btn filebtn"><span data-i18n="ctl_import"></span><input id="ctlImport" type="file" accept=".json,application/json" hidden></label>
+        <button class="btn danger" id="ctlDel" type="button" data-i18n="ctl_dellayout"></button>
+      </div>
+    </details>
   </div>
   <div class="ctlsplit">
-    <div class="card flowcard"><div class="flow" id="flow"><div class="flowinner" id="flowInner"><svg id="flowSvg" aria-hidden="true"></svg></div></div></div>
+    <div class="card flowcard">
+      <div class="flowhead">
+        <div class="tools" id="ctlToolBar" role="group" hidden>
+          <button class="btn tool" id="toolMove" type="button" data-i18n="tool_move"></button>
+          <button class="btn tool" id="toolLink" type="button" data-i18n="tool_link"></button>
+          <button class="btn tool" id="toolDel" type="button" data-i18n="tool_del"></button>
+          <button class="btn tool" id="ctlTidy" type="button" data-i18n="ctl_tidy"></button>
+        </div>
+        <span class="grow"></span>
+        <span class="zoomgrp"><button class="btn" id="ctlZoomOut" type="button" data-i18n-title="ctl_zoom_out" aria-label="Kleiner">−</button><button class="btn" id="ctlFit" type="button" data-i18n="ctl_fit"></button><button class="btn" id="ctlZoomIn" type="button" data-i18n-title="ctl_zoom_in" aria-label="Größer">+</button></span>
+      </div>
+      <p class="hint flowhint" id="ctlHint"></p>
+      <div class="flow" id="flow"><div id="flowWrap"><div class="flowinner" id="flowInner"><svg id="flowSvg" aria-hidden="true"></svg></div></div></div>
+    </div>
     <div class="stack">
       <div class="card" id="procCard"></div>
       <div class="card">

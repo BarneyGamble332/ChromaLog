@@ -1,6 +1,6 @@
 # ChromaLog – Anforderungen und Nachweise
 
-Stand: 12.11.2026 · gilt für Version 0.8
+Stand: 12.11.2026 · gilt für Version 0.9
 
 Dieses Dokument hält fest, was die Software können muss, und womit jede Anforderung nachgewiesen ist. Es ist die Grundlage für eine spätere Validierung. Bei jeder Änderung an der Software wird es mitgepflegt.
 
@@ -70,9 +70,9 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 | A-53 | Ablauf-Schritte „Stellen“, „Warten“ und „Warten bis“ schalten richtig weiter; eine Zeitüberschreitung bricht ab; ohne Messwert wird gewartet. | Automatisch | erfüllt |
 | A-54 | Messwerte werden aus der Datenzeile (`D:`) oder von einem Bauteil (`V:`) gelesen; fehlende Werte gelten als „kein Wert“. | Automatisch | erfüllt |
 | A-55 | Kurznamen sind je Aufbau eindeutig; Stellungen werden aus „Name=Wert“ gelesen. | Automatisch | erfüllt |
-| A-56 | Eine Leitung verlässt die Kachel an der Seite, die zum Ziel zeigt. | Automatisch | erfüllt |
+| A-56 | Eine Leitung verlässt das Symbol an der Seite, die zum Ziel zeigt, und wird rechtwinklig geführt. | Automatisch (Tests A-56 und A-76) | erfüllt |
 | A-57 | Simulator: Spritzenpumpe fördert das eingestellte Volumen und hält leer an; Heizung erreicht den Sollwert; Messwertzeilen werden gelesen. | Automatisch | erfüllt |
-| A-58 | Bauteile lassen sich verschieben, verbinden, ändern und löschen; der Aufbau bleibt nach dem Neuladen erhalten. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
+| A-58 | Im Modus „Bearbeiten“ lassen sich Symbole mit dem Werkzeug „Verschieben“ ziehen, mit „Leitung ziehen“ verbinden und mit „Löschen“ samt Leitungen entfernen; Leitungen sind nur mit „Löschen“ antippbar. Der Aufbau bleibt nach dem Neuladen erhalten. | Automatisch im Browser (Simulator), mit Maus | erfüllt im Simulator |
 | A-59 | „Alles stopp“ beendet einen laufenden Ablauf und stoppt die Pumpen. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
 | A-60 | Während eines Methodenlaufs sind die Bauteile gesperrt, die die Methode selbst fährt (Rolle oder Methodenbefehl); alle anderen bleiben bedienbar. „Alles stopp“ bricht auch den Methodenlauf ab. | Automatisch (Rechenkern und Browser) | erfüllt im Simulator |
 | A-61 | Allgemeiner Sketch für den Arduino Uno (`firmware/chromalog_uno`), der `CLEAR`, `CFG` und `SET` versteht, Pin-Regeln prüft und Messwerte als `V`-Zeilen meldet. | Übersetzung für den Uno und Logiktest am PC (F-01 bis F-12, F-60 bis F-70) | Logik geprüft, am Gerät ungetestet |
@@ -84,7 +84,9 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 | A-67 | Ein Methodenlauf fährt die Bauteile mit Rolle: Pumpe A und B teilen den Fluss nach dem Anteil B, das Injektionsventil schaltet zwischen erster und zweiter Stellung; ohne Rollen gehen die Befehle unverändert ans Gerät. | Automatisch (Rechenkern und Browser) | erfüllt im Simulator |
 | A-68 | Endschalter und Lecksensor werden nach ihrem Ziel angemeldet; Ereigniszeilen des Geräts (`E,STOP`, `E,LIMIT`) werden gelesen. | Automatisch | erfüllt |
 | A-73 | Die Bauteile des gewählten Aufbaus erscheinen im Reiter „Messen“ mit ihren Bedienelementen und laufenden Messwerten; einzelne Bauteile lassen sich ausblenden; ohne Bauteile erscheint die feste Handsteuerung. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
-| A-74 | Im Fließbild zeigt jede Kachel nur den Zustand; ein Klick wählt das Bauteil an und öffnet ein Fenster mit seinen Bedienelementen. Reine Anzeigen öffnen kein Fenster. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
+| A-74 | Im Fließbild zeigt jedes Symbol den Zustand des Bauteils (farbig, wenn in Betrieb); ein Tipp wählt es an und öffnet ein Fenster mit seinen Bedienelementen. Anzeigen und Symbole ohne Funktion öffnen kein Fenster. | Automatisch im Browser (Simulator) | erfüllt im Simulator |
+| A-75 | Bedienung am Handy: Werkzeuge als große Schalter; Leitungen entstehen durch Antippen von Start und Ziel und lassen sich als Kette fortsetzen; Symbole ohne Funktion (Säule, T-Stück, Flasche, Probe, SPE-Kartusche, Probenschleife, Abfall) lassen sich einfügen und werden weder beim Gerät angemeldet noch im Reiter „Messen“ gezeigt; das Symbol eines Bauteils ist wählbar; ein breiter Aufbau wird beim Öffnen lesbar verkleinert. | Automatisch im Browser mit nachgestelltem Handy (Fingertipps, 400 px Breite). Das Ziehen mit dem Finger und das Zoomen mit zwei Fingern sind nicht automatisch geprüft. | erfüllt im Simulator; Ziehen und Zwei-Finger-Zoom am Handy ungetestet |
+| A-76 | „Aufräumen“ ordnet verbundene Symbole als Kette von links nach rechts passend zur Bildschirmbreite an, unverbundene in einer eigenen Zeile; nichts liegt übereinander. | Automatisch (Rechenkern und Browser) | erfüllt |
 
 ## 6 Linux-Programm und Android-App
 | Nr. | Anforderung | Nachweis | Status |
@@ -109,3 +111,4 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 | 13.11.2026 | 0.6 | Prüfsummen-Prüfung (A-47), Rollen im Methodenlauf (A-67), Endschalter, Lecksensor und Verbindungsüberwachung im Sketch (A-63, A-66, A-68). Neu: 9 Browser-Tests und 48 Prüfungen der Sketch-Logik am PC; die bisherigen Browser-Prüfungen von Hand sind damit automatisch. Insgesamt 50 Anforderungen. |
 | 13.11.2026 | 0.7 | Linux-Programm und Android-App (A-69 bis A-72); A-06 und A-07 um die neuen Wege erweitert. Insgesamt 54 Anforderungen. |
 | 14.11.2026 | 0.8 | Bauteile im Reiter „Messen“ (A-73), Bedienfenster im Fließbild (A-74), Sperre im Lauf nur noch für von der Methode gefahrene Bauteile (A-60). Insgesamt 56 Anforderungen. |
+| 14.11.2026 | 0.9 | Fließbild mit Symbolen statt Kacheln, Werkzeuge für die Bedienung am Handy, Symbole ohne Funktion, Zoom, „Aufräumen“ (A-75, A-76; A-56, A-58, A-74 angepasst). Insgesamt 58 Anforderungen. |

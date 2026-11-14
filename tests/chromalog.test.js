@@ -280,3 +280,15 @@ test('A-60 Im Methodenlauf sind nur die Bauteile gesperrt, die die Methode selbs
   assert.equal(C.partLockedInRun({ key: 'fluss', cmd: 'FLOW {v}' }), true); assert.equal(C.partLockedInRun({ key: 'b', cmd: 'PCTB {v}' }), true); assert.equal(C.partLockedInRun({ key: 'inj', cmd: 'VALVE {v}' }), true);
   assert.equal(C.partLockedInRun({ key: 'heizung', kind: 'heater' }), false); assert.equal(C.partLockedInRun({ key: 'led', cmd: 'LED {v}' }), false); assert.equal(C.partLockedInRun({ key: 'mv', role: '' }), false);
 });
+
+test('A-76 Aufräumen: Ketten von links nach rechts, Zeilenumbruch, unverbundene Teile in neuer Zeile', () => {
+  const parts = ['a', 'b', 'c', 'd', 'x', 'y'].map(id => ({ id, x: 999, y: 999 }));
+  C.tidyLayout(parts, [{ from: 'c', to: 'd' }, { from: 'a', to: 'b' }, { from: 'b', to: 'c' }, { from: 'zz', to: 'a' }], 3, 150, 140);
+  const pos = Object.fromEntries(parts.map(q => [q.id, q.x + ',' + q.y]));
+  assert.deepEqual(pos, { a: '20,20', b: '170,20', c: '320,20', d: '20,160', x: '20,300', y: '170,300' });
+  const ring = [{ id: 'p' }, { id: 'q' }]; C.tidyLayout(ring, [{ from: 'p', to: 'q' }, { from: 'q', to: 'p' }], 4, 150, 140);
+  assert.deepEqual(ring.map(q => q.x), [20, 170], 'auch ein Ring wird angeordnet');
+  assert.equal(C.linkPath({ x: 0, y: 0, w: 56, h: 56 }, { x: 150, y: 0, w: 56, h: 56 }), 'M56 28 L 150 28', 'gleiche Höhe: gerade Leitung');
+  assert.equal(C.linkPath({ x: 0, y: 0, w: 56, h: 56 }, { x: 150, y: 40, w: 56, h: 56 }), 'M56 28 L 103 28 L 103 68 L 150 68', 'versetzt: rechtwinklig geführt');
+  assert.deepEqual(C.configCommands([{ key: 'saeule', kind: 'symbol' }]), [], 'Symbole ohne Funktion werden nicht angemeldet'); assert.deepEqual(C.safeCommands([{ key: 'saeule', kind: 'symbol', safe: '0' }]), []);
+});

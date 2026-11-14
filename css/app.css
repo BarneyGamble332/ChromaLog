@@ -217,3 +217,37 @@ dialog.narrow { width: 380px; }
 .node.op { border: 0; } .node.op .nh { padding: 0 0 8px; } .node.op .nn { font-size: 17px; font-family: var(--f-disp); } .node.op .nt { display: block; }
 .node.op .nb { padding: 8px 0; gap: 12px; } .node.op .nf { display: block; padding: 8px 0 0; } .node.op .btn { padding: 10px 12px; } .node.op .seg .btn { min-height: 44px; }
 .node.op input[type="number"] { width: 110px; font-size: 16px; }
+
+/* Fließbild mit Symbolen (ab Version 0.9) */
+#flowWrap { position: relative; overflow: hidden; }
+.flowinner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.node.sym { width: 120px; background: transparent; border: 1px solid transparent; box-shadow: none; align-items: center; text-align: center; padding: 4px 2px 6px; gap: 2px; border-radius: 8px; user-select: none; -webkit-user-select: none; }
+.node.sym .ico { width: 56px; height: 56px; flex: none; color: var(--ink); background: var(--panel); border: 1.5px solid var(--muted); border-radius: 10px; padding: 5px; }
+.node.sym .ico svg { width: 100%; height: 100%; display: block; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.node.sym.active .ico { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+.node.sym.passive .ico { border-style: dashed; }
+.node.sym .nn { font-size: 12px; font-weight: 600; line-height: 1.2; max-width: 116px; overflow-wrap: anywhere; background: var(--panel); border-radius: 3px; padding: 0 3px; }
+.node.sym .state { font: 500 12px/1.25 var(--f-mono); color: var(--muted); background: var(--panel); border-radius: 3px; padding: 0 3px; }
+.node.sym.active .state { color: var(--ink); }
+.node.sym.sel .ico, .node.sym.linkfrom .ico { outline: 3px solid var(--accent); outline-offset: 2px; } .node.sym.sel, .node.sym.linkfrom { outline: 0; }
+.node.sym.locked .ico { opacity: .5; } .node.sym.locked .nn::after { content: " 🔒"; }
+.flow:not(.editing) .node.sym.can { cursor: pointer; }
+.flow.editing .node.sym { cursor: grab; touch-action: none; border-color: var(--line); background: color-mix(in srgb, var(--panel) 70%, transparent); }
+.flow.editing.t-link .node.sym, .flow.editing.t-del .node.sym { cursor: pointer; touch-action: manipulation; }
+.flow.editing.t-del .node.sym:hover .ico { border-color: var(--crit); color: var(--crit); }
+#flowSvg path.pipe { stroke-width: 3; }
+.flow.editing #flowSvg path.hit { pointer-events: none; } .flow.editing.t-del #flowSvg path.hit { pointer-events: stroke; cursor: pointer; stroke-width: 26; }
+.tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn.tool { min-height: 44px; padding: 8px 14px; font-size: 14px; }
+.zoomgrp { display: inline-flex; gap: 4px; } .zoomgrp .btn { min-width: 40px; min-height: 36px; }
+.icogrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
+.icogrid button { height: 52px; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; color: var(--ink); }
+.icogrid button.on { border: 2px solid var(--accent); } .icogrid svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.libgrid button { display: flex; align-items: center; gap: 10px; min-height: 52px; } .libgrid button svg { width: 34px; height: 34px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 700px) { .flow { height: min(62vh, 560px); min-height: 340px; } .ctlsplit { gap: 12px; } }
+
+.flowhead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.flowhint { margin: 0; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.flow { touch-action: pan-x pan-y; }
+details.manage { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); } details.manage summary { cursor: pointer; color: var(--muted); font-size: 13px; } details.manage .toolbar { margin-top: 8px; }
+@media (max-width: 700px) { .btn.tool { padding: 8px 10px; font-size: 13px; flex: 1 1 auto; } .tools { flex: 1 1 100%; } .zoomgrp { margin-left: auto; } }
