@@ -50,12 +50,16 @@ function createWindow() {
   win.on('closed', () => { win = null; });
   /* Selbsttest für den automatischen Bau: CHROMALOG_SMOKE=1 startet, prüft die App und beendet sich */
   if (process.env.CHROMALOG_SMOKE) {
-    win.webContents.once('did-finish-load', () => setTimeout(async () => {
-      let r;
-      try { r = await win.webContents.executeJavaScript("JSON.stringify({ runs: S.runs.length, device: S.dev && S.dev.kind, data: !!S.last, peaks: S.runs[0].analysis.peaks.length, persistent: Store.persistent, serial: 'serial' in navigator, bluetooth: 'bluetooth' in navigator, version: APP_VERSION })"); }
-      catch (e) { r = JSON.stringify({ error: String(e) }); }
+    win.webContents.once('did-finish-load', async () => {
+      const probe = "JSON.stringify({ runs: S.runs.length, device: S.dev && S.dev.kind, data: !!S.last, peaks: S.runs.length ? S.runs[0].analysis.peaks.length : 0, persistent: Store.persistent, serial: 'serial' in navigator, bluetooth: 'bluetooth' in navigator, version: APP_VERSION })";
+      let r = '{}';
+      for (let i = 0; i < 40; i++) {                       /* bis zu 40 s warten: der erste Start legt den Beispiel-Lauf an */
+        await new Promise(res => setTimeout(res, 1000));
+        try { r = await win.webContents.executeJavaScript(probe); } catch (e) { r = JSON.stringify({ error: String(e) }); }
+        if (/"runs":[1-9]/.test(r) && /"data":true/.test(r)) break;
+      }
       console.log('SMOKE ' + r); app.exit(/"runs":[1-9]/.test(r) && /"data":true/.test(r) ? 0 : 1);
-    }, 5000));
+    });
   }
 }
 
