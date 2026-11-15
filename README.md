@@ -43,6 +43,9 @@ https://barneygamble332.github.io/ChromaLog/ in Chrome oder Chromium öffnen. US
 ## Arduino
 `firmware/chromalog_uno` enthält den allgemeinen Sketch für den Arduino Uno (UV-Detektor aus Stufe 1 plus Baukasten für die Steuerung). Anleitung, Pin-Regeln und Sicherheitshinweise: `firmware/README.md`. Der Sketch ist übersetzt, aber noch nicht am Gerät getestet.
 
+## Weiterentwickeln
+`docs/ENTWICKLUNG.md` ist die Übergabe für alle, die am Programm weiterarbeiten (auch KI-Modelle): Aufbau, Protokoll, Arbeitsregeln, offene Punkte.
+
 ## Tests und Anforderungen
 - `docs/ANFORDERUNGEN.md`: Anforderungen mit Nachweis und Status
 - `tests/chromalog.test.js`: Tests der Rechenkerne (`npm test`)
