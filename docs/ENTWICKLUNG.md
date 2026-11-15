@@ -15,6 +15,7 @@ Dieses Dokument ist für alle gedacht, die am Programm weiterarbeiten, Mensch od
 | Web-App | https://barneygamble332.github.io/ChromaLog/ (Groß-/Kleinschreibung beachten) |
 | Fertige Pakete (AppImage, deb, APK) | Releases → „Aktueller Stand“, Kennung `aktuell`, wird bei jedem Push neu gebaut |
 | Anforderungen mit Nachweis | `docs/ANFORDERUNGEN.md` |
+| Validierungsplan für das Gesamtsystem | `docs/VALIDIERUNGSPLAN.md` |
 | Installation | `docs/INSTALLATION.md` |
 | Erste Messung mit dem Detektor | `docs/INBETRIEBNAHME-STUFE1.md` |
 | Arduino-Sketch, Pins, Sicherheit | `firmware/README.md` |

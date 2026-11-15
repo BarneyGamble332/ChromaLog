@@ -48,6 +48,7 @@ https://barneygamble332.github.io/ChromaLog/ in Chrome oder Chromium öffnen. US
 
 ## Tests und Anforderungen
 - `docs/ANFORDERUNGEN.md`: Anforderungen mit Nachweis und Status
+- `docs/VALIDIERUNGSPLAN.md`: schlanker Plan, mit dem das fertige Gerät zeigt, dass es die Grundanforderungen an eine HPLC erfüllt
 - `tests/chromalog.test.js`: Tests der Rechenkerne (`npm test`)
 - `tests/e2e.test.js`: Tests der Oberfläche im Browser mit dem Simulator (`npm install`, dann `npm run test:ui`)
 - `tests/firmware/`: Logiktest des Arduino-Sketches am PC (`npm run test:fw`)
