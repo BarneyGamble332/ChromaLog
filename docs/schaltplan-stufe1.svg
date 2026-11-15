@@ -1,0 +1,211 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1220 1010" font-family="DejaVu Sans, Arial, sans-serif" font-size="14">
+  <title>Schaltplan Stufe 1 – UV-Detektor am Arduino Uno</title>
+  <rect width="1220" height="1010" fill="#ffffff"/>
+  <text x="40" y="38" font-size="22" font-weight="bold" fill="#111">Schaltplan Stufe 1 – UV-Detektor am Arduino Uno</text>
+  <text x="40" y="60" fill="#444">Verdrahtungsplan zum Sketch chromalog_uno 0.3 · Punkte = verbunden · Bogen = Leitung kreuzt ohne Verbindung</text>
+
+  <g fill="none" stroke-width="3" stroke-linejoin="round">
+    <!-- +5 V Schiene (Arduino) -->
+    <g stroke="#c62828">
+      <path d="M80,90 H1120"/>
+      <path d="M80,370 V90"/>
+      <path d="M220,330 V90"/>
+      <path d="M340,150 V90"/>
+      <path d="M640,250 V90"/>
+      <path d="M1000,230 V90"/>
+      <path d="M1080,420 H1120 V308 A8,8 0 0 1 1120,292 V90"/>
+    </g>
+    <!-- GND -->
+    <g stroke="#222">
+      <path d="M130,520 H1160"/>
+      <path d="M130,470 V520"/>
+      <path d="M380,470 V520"/>
+      <path d="M640,450 V520"/>
+      <path d="M700,450 V520"/>
+      <path d="M1000,470 V520"/>
+      <path d="M1080,300 H1160 V860"/>
+      <path d="M480,860 H1160"/>
+      <path d="M600,820 V860"/>
+      <path d="M480,845 V860"/>
+      <path d="M740,760 V860"/>
+      <path d="M860,660 V860"/>
+      <path d="M960,760 V860"/>
+      <path d="M1070,690 V860"/>
+    </g>
+    <!-- I2C -->
+    <path d="M420,300 H600" stroke="#1565c0"/>
+    <path d="M420,340 H600" stroke="#2e7d32"/>
+    <!-- Analogsignale -->
+    <g stroke="#6a1b9a">
+      <path d="M760,300 H920"/>
+      <path d="M760,400 H920"/>
+    </g>
+    <!-- Digital: D2, D3 -->
+    <g stroke="#00838f">
+      <path d="M190,420 H260"/>
+      <path d="M220,420 V390"/>
+      <path d="M300,470 V512 A8,8 0 0 0 300,528 V780 H360"/>
+      <path d="M430,780 H540"/>
+      <path d="M480,780 V800"/>
+    </g>
+    <!-- 12 V -->
+    <path d="M1000,620 H920" stroke="#6d4c41"/>
+    <path d="M960,620 V720" stroke="#6d4c41"/>
+    <!-- +5 V LED (vom 7805) -->
+    <g stroke="#e65100">
+      <path d="M800,620 H680"/>
+      <path d="M740,620 V720"/>
+    </g>
+    <!-- Modul-Minus zum MOSFET -->
+    <path d="M600,690 V740" stroke="#555"/>
+  </g>
+
+  <!-- Verbindungspunkte -->
+  <g fill="#c62828">
+    <circle cx="220" cy="90" r="5"/><circle cx="340" cy="90" r="5"/><circle cx="640" cy="90" r="5"/><circle cx="1000" cy="90" r="5"/>
+  </g>
+  <g fill="#222">
+    <circle cx="380" cy="520" r="5"/><circle cx="640" cy="520" r="5"/><circle cx="700" cy="520" r="5"/><circle cx="1000" cy="520" r="5"/><circle cx="1160" cy="520" r="5"/>
+    <circle cx="600" cy="860" r="5"/><circle cx="740" cy="860" r="5"/><circle cx="860" cy="860" r="5"/><circle cx="960" cy="860" r="5"/><circle cx="1070" cy="860" r="5"/>
+  </g>
+  <circle cx="220" cy="420" r="5" fill="#00838f"/>
+  <circle cx="480" cy="780" r="5" fill="#00838f"/>
+  <circle cx="960" cy="620" r="5" fill="#6d4c41"/>
+  <circle cx="740" cy="620" r="5" fill="#e65100"/>
+
+  <!-- Widerstände -->
+  <g fill="#fff" stroke="#333" stroke-width="2">
+    <rect x="208" y="330" width="24" height="60"/>
+    <rect x="360" y="768" width="70" height="24"/>
+    <rect x="468" y="800" width="24" height="45"/>
+  </g>
+  <text x="200" y="340" text-anchor="end" fill="#111">4,7 kΩ</text>
+  <text x="200" y="357" text-anchor="end" fill="#555" font-size="12">Pull-up</text>
+  <text x="395" y="760" text-anchor="middle" fill="#111">100 Ω</text>
+  <text x="460" y="828" text-anchor="end" fill="#111">10 kΩ</text>
+
+  <!-- Kondensatoren -->
+  <g stroke="#333" stroke-width="3">
+    <path d="M722,722 H758 M722,758 H758"/>
+    <path d="M942,722 H978 M942,758 H978"/>
+  </g>
+  <text x="766" y="738" fill="#111" font-size="13">100 nF</text>
+  <text x="766" y="754" fill="#111" font-size="13">+ 100 µF</text>
+  <text x="986" y="738" fill="#111" font-size="13">100 nF</text>
+  <text x="986" y="754" fill="#111" font-size="13">+ 100 µF</text>
+
+  <!-- Bauteile -->
+  <g fill="#f3f6fa" stroke="#1f2d3d" stroke-width="2">
+    <rect x="260" y="150" width="160" height="320" rx="6"/>
+    <rect x="40" y="370" width="150" height="100" rx="6"/>
+    <rect x="600" y="250" width="160" height="200" rx="6"/>
+    <rect x="920" y="230" width="160" height="100" rx="6"/>
+    <rect x="920" y="370" width="160" height="100" rx="6"/>
+    <rect x="520" y="590" width="160" height="100" rx="6"/>
+    <rect x="540" y="740" width="120" height="80" rx="6"/>
+    <rect x="800" y="590" width="120" height="70" rx="6"/>
+    <rect x="1000" y="590" width="140" height="100" rx="6"/>
+  </g>
+
+  <g fill="#111">
+    <!-- Arduino -->
+    <text x="340" y="250" text-anchor="middle" font-weight="bold" font-size="16">Arduino Uno</text>
+    <text x="340" y="272" text-anchor="middle" fill="#555" font-size="12">Strom und Daten</text>
+    <text x="340" y="288" text-anchor="middle" fill="#555" font-size="12">über USB vom PC</text>
+    <text x="340" y="170" text-anchor="middle">5V</text>
+    <text x="412" y="305" text-anchor="end">A4 (SDA)</text>
+    <text x="412" y="345" text-anchor="end">A5 (SCL)</text>
+    <text x="268" y="425">D2</text>
+    <text x="300" y="460" text-anchor="middle">D3</text>
+    <text x="380" y="460" text-anchor="middle">GND</text>
+
+    <!-- DS18B20 -->
+    <text x="105" y="418" text-anchor="middle" font-weight="bold">DS18B20</text>
+    <text x="105" y="436" text-anchor="middle" fill="#555" font-size="12">Temperatur</text>
+    <text x="80" y="387" text-anchor="middle" font-size="12">VDD</text>
+    <text x="184" y="414" text-anchor="end" font-size="12">DQ</text>
+    <text x="130" y="464" text-anchor="middle" font-size="12">GND</text>
+
+    <!-- ADS1115 -->
+    <text x="680" y="384" text-anchor="middle" font-weight="bold" font-size="16">ADS1115</text>
+    <text x="672" y="402" text-anchor="middle" fill="#555" font-size="12">Adresse 0x48</text>
+    <text x="640" y="270" text-anchor="middle">VDD</text>
+    <text x="608" y="305">SDA</text>
+    <text x="608" y="345">SCL</text>
+    <text x="752" y="305" text-anchor="end">A0</text>
+    <text x="752" y="405" text-anchor="end">A1</text>
+    <text x="640" y="440" text-anchor="middle">GND</text>
+    <text x="700" y="440" text-anchor="middle">ADDR</text>
+
+    <!-- GUVA Mess -->
+    <text x="1000" y="264" text-anchor="middle" font-weight="bold">GUVA-S12SD</text>
+    <text x="1000" y="282" text-anchor="middle" fill="#555" font-size="12">Messdiode hinter Küvette</text>
+    <text x="1000" y="246" text-anchor="middle" font-size="12">+</text>
+    <text x="928" y="318" font-size="12">OUT</text>
+    <text x="1072" y="318" text-anchor="end" font-size="12">−</text>
+
+    <!-- GUVA Ref -->
+    <text x="1000" y="390" text-anchor="middle" font-weight="bold">GUVA-S12SD</text>
+    <text x="1000" y="446" text-anchor="middle" fill="#555" font-size="12">Referenzdiode neben LED</text>
+    <text x="928" y="418" font-size="12">OUT</text>
+    <text x="1072" y="414" text-anchor="end" font-size="12">+</text>
+    <text x="1000" y="464" text-anchor="middle" font-size="12">−</text>
+
+    <!-- UV-Modul -->
+    <text x="600" y="632" text-anchor="middle" font-weight="bold">UV-C-LED-Modul</text>
+    <text x="600" y="650" text-anchor="middle" fill="#555" font-size="12">275 nm, ca. 95 mA</text>
+    <text x="672" y="610" text-anchor="end" font-size="12">Plus</text>
+    <text x="600" y="684" text-anchor="middle" font-size="12">Minus</text>
+
+    <!-- MOSFET -->
+    <text x="600" y="778" text-anchor="middle" font-weight="bold">IRLB8721</text>
+    <text x="600" y="794" text-anchor="middle" fill="#555" font-size="12">MOSFET</text>
+    <text x="600" y="756" text-anchor="middle" font-size="12">D</text>
+    <text x="548" y="776" font-size="12">G</text>
+    <text x="600" y="814" text-anchor="middle" font-size="12">S</text>
+
+    <!-- 7805 -->
+    <text x="860" y="622" text-anchor="middle" font-weight="bold">L7805</text>
+    <text x="808" y="640" font-size="12">OUT</text>
+    <text x="912" y="640" text-anchor="end" font-size="12">IN</text>
+    <text x="860" y="655" text-anchor="middle" font-size="12">GND</text>
+
+    <!-- Netzteil -->
+    <text x="1070" y="632" text-anchor="middle" font-weight="bold">Netzteil 12 V</text>
+    <text x="1070" y="650" text-anchor="middle" fill="#555" font-size="12">über DC-Kupplung</text>
+    <text x="1008" y="610" font-size="12">+</text>
+    <text x="1070" y="684" text-anchor="middle" font-size="12">−</text>
+  </g>
+
+  <!-- Leitungsbeschriftungen -->
+  <text x="430" y="82" fill="#c62828" font-weight="bold">+5 V vom Arduino (für ADS1115, beide Dioden, DS18B20)</text>
+  <text x="150" y="512" fill="#222" font-weight="bold">GND</text>
+  <text x="720" y="542" fill="#222" font-weight="bold">GND – gemeinsame Masse aller Teile</text>
+  <text x="510" y="292" text-anchor="middle" fill="#1565c0">SDA</text>
+  <text x="510" y="358" text-anchor="middle" fill="#2e7d32">SCL</text>
+  <text x="840" y="292" text-anchor="middle" fill="#6a1b9a">Messsignal</text>
+  <text x="840" y="392" text-anchor="middle" fill="#6a1b9a">Referenzsignal</text>
+  <text x="312" y="650" fill="#00838f">D3 schaltet die LED</text>
+  <text x="740" y="610" text-anchor="middle" fill="#e65100" font-weight="bold">+5 V LED</text>
+  <text x="960" y="610" text-anchor="middle" fill="#6d4c41" font-weight="bold">+12 V</text>
+  <text x="712" y="852" fill="#222" font-size="12">GND</text>
+  <text x="1176" y="620" fill="#222" font-size="12" transform="rotate(90 1176,620)">GND verbindet beide Teile</text>
+
+  <!-- Rahmen LED-Versorgung -->
+  <rect x="290" y="560" width="855" height="320" fill="none" stroke="#9aa5b1" stroke-width="1.5" stroke-dasharray="6 5" rx="8"/>
+  <text x="302" y="580" fill="#555" font-size="13">Versorgung und Schalter der UV-LED (eigene 5 V aus dem 12-V-Netzteil)</text>
+
+  <!-- Hinweise -->
+  <g fill="#111" font-size="13">
+    <text x="40" y="912" font-weight="bold" fill="#b71c1c">Wichtig</text>
+    <text x="40" y="932">• 12 V und „+5 V LED“ nie an den 5V-Pin des Arduino. Nur die Massen (GND) werden verbunden.</text>
+    <text x="40" y="950">• ADDR des ADS1115 an GND, sonst stimmt die Adresse 0x48 nicht.</text>
+    <text x="40" y="968">• Ohne MOSFET: Modul-Minus direkt an GND; die LED leuchtet dann dauernd.</text>
+    <text x="40" y="986">• UV-C nur im geschlossenen Gehäuse betreiben, beim Justieren Schutzbrille.</text>
+    <text x="700" y="912" font-weight="bold">Pinbelegung, Beschriftung von vorne gesehen</text>
+    <text x="700" y="932">L7805: IN – GND – OUT</text>
+    <text x="700" y="950">IRLB8721: G – D – S</text>
+    <text x="700" y="968">DS18B20: GND – DQ – VDD</text>
+    <text x="700" y="986">Kondensatoren dicht am L7805; Elko: Minus-Streifen an GND</text>
+  </g>
+</svg>

@@ -13,6 +13,10 @@ Diese Anleitung führt vom Aufspielen des Sketches bis zur ersten Stabilitätsme
 4. Den seriellen Monitor der IDE schließen, sonst ist der Anschluss belegt.
 
 ## 2 Verdrahten
+Schaltplan: [`schaltplan-stufe1.svg`](schaltplan-stufe1.svg) (zum Drucken auch als [`schaltplan-stufe1.png`](schaltplan-stufe1.png)).
+
+![Schaltplan Stufe 1](schaltplan-stufe1.svg)
+
 | Signal | Arduino-Pin | Bauteil |
 | --- | --- | --- |
 | +5 V | 5V | ADS1115, beide UV-Sensoren, DS18B20 |
