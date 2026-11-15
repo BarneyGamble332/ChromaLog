@@ -1,9 +1,9 @@
 # Validierungsplan Mini-HPLC mit ChromaLog (schlanke Fassung)
 
-Stand: 15.11.2026 · Entwurf 1 · gilt für das Gesamtsystem aus Gerät, Arduino-Sketch und ChromaLog
+Stand: 15.11.2026 · Entwurf 2 · gilt für das Gesamtsystem aus Gerät, Arduino-Sketch und ChromaLog
 
 ## 1 Zweck
-Der Plan soll mit wenig Aufwand zeigen: **Das System kann, was eine HPLC grundsätzlich können muss** – gleichmäßig fördern, reproduzierbar aufgeben, trennen, linear messen und die Ergebnisse nachvollziehbar festhalten.
+Der Plan soll mit überschaubarem Aufwand zeigen: **Das System kann, was eine HPLC grundsätzlich können muss** – gleichmäßig fördern, reproduzierbar aufgeben, trennen, linear messen und die Ergebnisse nachvollziehbar festhalten.
 
 Er ist bewusst **keine** Validierung nach Pharma-Regeln und noch keine Validierung einer bestimmten Analysenmethode. Er ist der erste Nachweis „ja, es geht“. Aufbau und Begriffe lehnen sich an das an, was im Labor üblich ist (Geräteprüfung, Systemeignungstest, Kenngrößen wie bei einer Methodenvalidierung), damit sich später darauf aufbauen lässt.
 
@@ -12,13 +12,17 @@ Er ist bewusst **keine** Validierung nach Pharma-Regeln und noch keine Validieru
 ## 2 Was geprüft wird und wann
 Der Plan folgt dem Stufenplan des Projekts. Jeder Teil kann geprüft werden, sobald die zugehörige Stufe läuft.
 
-| Teil | Inhalt | Voraussetzung | Aufwand etwa |
+| Teil | Inhalt | Voraussetzung | Reine Messzeit, wenn alles auf Anhieb läuft |
 | --- | --- | --- | --- |
 | A | Detektor allein | Stufe 1 (jetzt) | ½ Tag |
 | B | Pumpe, Dichtheit, Gradient, Sicherheit | Stufe 2 und Gradient | 1 Tag |
 | C | Gesamtsystem mit Säule (Systemeignung, Linearität, Nachweisgrenze, Verschleppung, Wiederfindung) | Stufe 3 | 1–2 Tage |
 | D | Software und Dokumentation | läuft mit | 1–2 Stunden |
 | E | Vergleich mit einer Labor-HPLC | freiwillig, später | – |
+
+**Zum Aufwand:** Die Spalte nennt nur die Messzeit im besten Fall. Der wirkliche Aufwand liegt deutlich höher: Lösungen ansetzen, Gerät einlaufen lassen und equilibrieren, Fehler suchen, nach Umbauten wiederholen. Bei einem Prototyp ist eher mit mehreren Wochen über die Stufen verteilt zu rechnen als mit Tagen. Eine belastbare Zahl gibt es erst nach den ersten Messungen; sie wird dann hier nachgetragen.
+
+**Offen: Wahl der Pumpe.** Ob Spritzenpumpe im Eigenbau, gekaufte Pumpe oder eine Mischung, ist noch nicht entschieden (Abwägung zwischen Kosten und dem, was sich sinnvoll selbst bauen lässt). Teil B gilt für jede Bauart. Die Prüfungen V-10 bis V-13 eignen sich auch dazu, zwei Pumpen vor der Entscheidung miteinander zu vergleichen.
 
 ## 3 Was man braucht
 - Feinwaage (0,01 g genügt für die Flussprüfung, 0,001 g für die Einwaage der Stammlösung), Stoppuhr, Messkolben und Pipetten.
@@ -47,6 +51,8 @@ V-01 bis V-03 entsprechen den Zielen aus dem Stufe-1-Konzept. Für V-02 fehlt in
 | V-13 | Gradient in Stufen | A = Wasser, B = Wasser mit 0,1 % Aceton, ohne Säule. Stufen 0 / 25 / 50 / 75 / 100 % B, je 5 min. Höhe der Stufen im Signal ablesen (0 % und 100 % als Bezug). | jede Stufe höchstens 5 %-Punkte neben dem Sollwert |
 | V-14 | Verzögerung des Gradienten | aus V-13: Zeit vom Umschalten bis zur halben Stufenhöhe, mal Fluss = Verweilvolumen | wird nur festgehalten, kein Grenzwert |
 | V-15 | Sicherheitsfunktionen | (a) Überdruck: Grenze in der Methode niedrig setzen oder Ausgang kurz verschließen; (b) „Alles stopp“; (c) Lecksensor auslösen; (d) USB-Kabel im Betrieb ziehen; (e) Endschalter von Hand betätigen | (a) Lauf bricht ab, Pumpen stehen; (b) alles steht sofort; (c) Pumpen und Heizung aus, auch ohne App; (d) Pumpen stehen nach spätestens 10 s; (e) Pumpe hält in dieser Richtung |
+
+Bei einer Spritzenpumpe kommt hinzu: V-10 einmal am Anfang, in der Mitte und kurz vor Ende des Hubs messen, und einen Lauf über das Nachfüllen hinweg ansehen (Sprung im Signal oder im Druck wird festgehalten).
 
 V-15 ist die wichtigste Prüfung vor jedem Betrieb mit Druck und Lösungsmittel. Sie kommt **vor** V-10 bis V-14, zuerst ohne Last.
 
@@ -112,3 +118,4 @@ Für eine bestimmte Messaufgabe (z. B. Benzotriazol im Kläranlagenablauf) folgt
 | Datum | Fassung | Änderung |
 | --- | --- | --- |
 | 15.11.2026 | Entwurf 1 | Erste Fassung. Grenzwerte sind Vorschläge und noch nicht mit Messungen am Gerät abgeglichen. |
+| 15.11.2026 | Entwurf 2 | Aufwand berichtigt: die Tabelle nennt nur die reine Messzeit, der wirkliche Aufwand liegt deutlich höher. Wahl der Pumpe als offen vermerkt, Zusatz für Spritzenpumpen in Teil B. Grenzwerte bleiben vorerst wie vorgeschlagen. |
