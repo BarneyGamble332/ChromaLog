@@ -319,3 +319,14 @@ test('A-82 Linux-Programm: der Arduino steht in der Auswahl vorn, alte Anschlüs
   assert.equal(sortPorts([{ portId: 'x', portName: 'ttyACM0' }]).usb.length, 1, 'ttyACM ohne Herstellerangabe zählt als USB');
   assert.deepEqual(sortPorts([]), { usb: [], others: [], auto: null });
 });
+
+test('A-83 Messbereich der Dioden: Befehl GAIN, keine Anmeldung, Simulator nimmt ihn an', () => {
+  const g = C.CTL_LIB.find(e => e.lib === 'uvgain');
+  assert.ok(g && g.keep, 'Bauteil „Messbereich“ in der Bibliothek, wird nach Neustart erneut gesendet');
+  assert.deepEqual(g.positions.map(q => q.value), ['1', '2', '4', '8', '16']);
+  assert.equal(C.partCommand(g, '8'), 'GAIN 8');
+  assert.deepEqual(C.configCommands([Object.assign({}, g)]), [], 'ein Bauteil mit eigenem Befehl wird nicht angemeldet');
+  assert.equal(C.partLockedInRun(g), false, 'im Lauf nicht gesperrt');
+  const sim = new SimDevice(); sim.send('GAIN 16'); assert.equal(sim.gain, 16); assert.ok(sim.out.some(l => l.startsWith('# OK GAIN 16')));
+  sim.send('GAIN 3'); assert.equal(sim.gain, 16); assert.ok(sim.out.some(l => l.startsWith('# FEHLER')));
+});

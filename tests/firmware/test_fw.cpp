@@ -93,6 +93,16 @@ int main() {
   g_adsV[0] = 1.0f; quiet(); run(2200);
   { size_t a = Serial.out.rfind("D,"); double t, uv = -1; sscanf(Serial.out.c_str() + a, "D,%lf,%lf", &t, &uv);
     CHECK(nearf(uv, 0.30103, 0.0001), "F-61 halbes Licht ergibt Extinktion 0,301"); }
+  // Verstärkung des ADS1115
+  CHECK(g_adsGain == GAIN_ONE, "F-64 Start mit Verstärkung 1 (Messbereich 4,096 V)");
+  g_adsV[0] = 0.10f; g_adsV[1] = 0.08f; quiet(); send("GAIN 8");
+  CHECK(g_adsGain == GAIN_EIGHT && said("# OK GAIN 8, Messbereich 0.512 V"), "F-64 GAIN 8 stellt den Messbereich 0,512 V ein");
+  run(2200); CHECK(said("V,uv_i,0.1000") && !said("Uebersteuert"), "F-64 kleine Signale werden im feinen Bereich gemessen");
+  g_adsV[0] = 0.60f; quiet(); run(2200); CHECK(said("Uebersteuert") && said("0.512 V"), "F-64 Warnung, wenn das Signal den feinen Messbereich übersteigt");
+  quiet(); send("GAIN 3"); CHECK(said("FEHLER") && g_adsGain == GAIN_EIGHT, "F-64 ungültige Verstärkung wird abgelehnt");
+  send("GAIN 16"); CHECK(g_adsGain == GAIN_SIXTEEN, "F-64 GAIN 16"); send("GAIN 1"); CHECK(g_adsGain == GAIN_ONE, "F-64 zurück auf Verstärkung 1");
+  g_adsV[0] = 1.0f; g_adsV[1] = 2.5f; run(2200);
+
   send("LED 0"); quiet(); run(1100);
   { size_t a = Serial.out.rfind("D,"); CHECK(Serial.out.compare(a, 2, "D,") == 0 && Serial.out.find(",,,", a) < Serial.out.find("\n", a) && Serial.out[Serial.out.find(",", a + 2) + 1] == ',', "F-62 bei ausgeschalteter LED bleibt das Extinktionsfeld leer"); }
 

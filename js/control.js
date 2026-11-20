@@ -29,6 +29,8 @@ const CTL_LIB = [
   { lib: 'pwm', group: 'heat', de: 'Leistungsausgang (PWM)', en: 'Power output (PWM)', kind: 'slider', key: 'pwm', min: 0, max: 100, step: 1, unit: '%', safe: '0', stop: true, pin: '5', fw: 'PWM' },
   { lib: 'uvled', group: 'det', de: 'UV-LED', en: 'UV LED', kind: 'switch', key: 'led', cmd: 'LED {v}', safe: '', pin: '3' },
   { lib: 'zero', group: 'det', de: 'Autozero', en: 'Autozero', kind: 'button', key: 'zero', cmd: 'ZERO' },
+  { lib: 'uvgain', group: 'det', de: 'Messbereich der Dioden (Verstärkung)', en: 'Diode measuring range (gain)', kind: 'positions', key: 'messbereich', cmd: 'GAIN {v}', keep: true, value: '1', safe: '',
+    positions: [{ name: '4,096 V (×1)', value: '1' }, { name: '2,048 V (×2)', value: '2' }, { name: '1,024 V (×4)', value: '4' }, { name: '0,512 V (×8)', value: '8' }, { name: '0,256 V (×16)', value: '16' }] },
   { lib: 'dark', group: 'det', de: 'Dunkelwert (bei ausgeschalteter LED)', en: 'Dark value (with LED off)', kind: 'button', key: 'dunkel', cmd: 'DARK' },
   { lib: 'uv_i', group: 'sens', de: 'Messdiode (Spannung)', en: 'Measuring diode (voltage)', kind: 'display', key: 'messdiode', unit: 'V', source: 'V:uv_i', dec: 4, fw: 'NONE', pin: 'ADS A0' },
   { lib: 'uv_r', group: 'sens', de: 'Referenzdiode (Spannung)', en: 'Reference diode (voltage)', kind: 'display', key: 'refdiode', unit: 'V', source: 'V:uv_r', dec: 4, fw: 'NONE', pin: 'ADS A1' },

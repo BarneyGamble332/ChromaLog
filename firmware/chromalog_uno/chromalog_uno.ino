@@ -1,5 +1,5 @@
 /*
- * ChromaLog – allgemeiner Sketch für den Arduino Uno          Version 0.3
+ * ChromaLog – allgemeiner Sketch für den Arduino Uno          Version 0.4
  *
  * Der Sketch macht zwei Dinge:
  *  1. UV-Detektor wie in Stufe 1: ADS1115 (A0 = Messdiode, A1 = Referenzdiode),
@@ -36,6 +36,7 @@
  *   WATCHDOG <s>          kommt so viele Sekunden nichts von der App, halten alle Pumpen an (0 = aus)
  *   PING                  Lebenszeichen der App
  *   LED 0|1 · ZERO (oder n) · DARK (oder d) · RATE <Hz> · STOP (alle Pumpen und Heizungen aus)
+ *   GAIN 1|2|4|8|16       Verstärkung des ADS1115: Messbereich 4,096 / 2,048 / 1,024 / 0,512 / 0,256 V (Start: 1)
  *
  * Meldungen:
  *   READY ChromaLog-Uno <version>                  nach dem Start
@@ -56,7 +57,7 @@
 #include <DallasTemperature.h>
 #include <Adafruit_ADS1X15.h>
 
-#define FW_VERSION "0.3"
+#define FW_VERSION "0.4"
 const uint8_t PIN_LED = 3;
 const uint8_t PIN_DS18B20 = 2;
 const float HEATER_MAX_C = 70.0;      // höchste erlaubte Solltemperatur
@@ -95,7 +96,8 @@ OneWire detWire(PIN_DS18B20);
 DallasTemperature detTemp(&detWire);
 bool hasAds = false, ledOn = false, zeroReq = false, darkReq = false;
 float sumI = 0, sumR = 0, darkI = 0, darkR = 0, ratio0 = 1, tempC = NAN, lastI = NAN, lastR = NAN;
-const float ADS_LIMIT_V = 4.0;        // darüber ist der Eingang des ADS1115 übersteuert (Messbereich ±4,096 V)
+uint8_t adsGain = 1;                  // Verstärkung des ADS1115; Messbereich = 4,096 V / adsGain
+float adsLimit() { return 4.096 * 0.97 / adsGain; }   // darüber gilt der Eingang als übersteuert
 uint8_t overCount = 0;
 uint16_t nAvg = 0;
 unsigned long dataMs = 1000, tData = 0, tSlow = 0, tVol = 0, lastRx = 0, wdMs = 0;
@@ -256,6 +258,22 @@ void checkLimits() {
     Serial.print(F("E,LIMIT,")); Serial.println(p.key);
   }
 }
+bool applyGain(uint8_t g) {
+  switch (g) {
+    case 1: ads.setGain(GAIN_ONE); break;
+    case 2: ads.setGain(GAIN_TWO); break;
+    case 4: ads.setGain(GAIN_FOUR); break;
+    case 8: ads.setGain(GAIN_EIGHT); break;
+    case 16: ads.setGain(GAIN_SIXTEEN); break;
+    default: return false;
+  }
+  adsGain = g; return true;
+}
+void cmdGain(int g) {
+  if (g < 1 || g > 16 || !applyGain((uint8_t)g)) { fail(F("GAIN 1, 2, 4, 8 oder 16"), NULL); return; }
+  sumI = sumR = 0; nAvg = 0; overCount = 0;
+  Serial.print(F("# OK GAIN ")); Serial.print(g); Serial.print(F(", Messbereich ")); Serial.print(4.096 / g, 3); Serial.println(F(" V"));
+}
 void handleLine(char *s) {
   char *c = strtok(s, " \t"); if (!c) return;
   char *a1 = strtok(NULL, " \t"), *a2 = strtok(NULL, " \t"), *a3 = strtok(NULL, " \t"), *a4 = strtok(NULL, " \t"), *a5 = strtok(NULL, " \t");
@@ -271,6 +289,7 @@ void handleLine(char *s) {
   else if (!strcasecmp_P(c, PSTR("DARK")) || !strcmp_P(c, PSTR("d"))) darkReq = true;
   else if (!strcasecmp_P(c, PSTR("RATE"))) { float hz = a1 ? atof(a1) : 1; hz = constrain(hz, 0.2, 10); dataMs = (unsigned long)(1000.0 / hz); }
   else if (!strcasecmp_P(c, PSTR("STOP"))) stopAll();
+  else if (!strcasecmp_P(c, PSTR("GAIN"))) cmdGain(a1 ? atoi(a1) : 0);
   else if (!strcasecmp_P(c, PSTR("PING"))) { }
   else if (!strcasecmp_P(c, PSTR("WATCHDOG"))) { float sec = a1 ? atof(a1) : 0; wdMs = sec > 0 ? (unsigned long)(sec * 1000.0) : 0; wdTripped = false; }
   else if (!strcasecmp_P(c, PSTR("FLOW")) || !strcasecmp_P(c, PSTR("PCTB")) || !strcasecmp_P(c, PSTR("VALVE"))) { Serial.print(F("# ")); Serial.print(c); Serial.println(F(" hat an diesem Aufbau noch keine Wirkung")); }
@@ -304,7 +323,7 @@ void slowTasks() {
   float t = detTemp.getTempCByIndex(0); tempC = (t > -100 && t < 125) ? t : NAN; detTemp.requestTemperatures();
   if (hasAds && !isnan(lastI)) {
     Serial.print(F("V,uv_i,")); Serial.println(lastI, 4); Serial.print(F("V,uv_r,")); Serial.println(lastR, 4);
-    if (lastI > ADS_LIMIT_V || lastR > ADS_LIMIT_V) { if (overCount++ % 10 == 0) Serial.println(F("# Uebersteuert: Diodenspannung ueber 4 V, Blende verkleinern oder Abstand vergroessern")); }
+    if (lastI > adsLimit() || lastR > adsLimit()) { if (overCount++ % 10 == 0) { Serial.print(F("# Uebersteuert: Diodenspannung am Ende des Messbereichs (")); Serial.print(4.096 / adsGain, 3); Serial.println(F(" V), Verstaerkung verringern, Blende verkleinern oder Abstand vergroessern")); } }
     else overCount = 0;
   }
   for (uint8_t i = 0; i < nParts; i++) {
@@ -339,7 +358,7 @@ void setup() {
   pinMode(PIN_LED, OUTPUT); digitalWrite(PIN_LED, LOW);
   Wire.begin();
   hasAds = ads.begin();
-  if (hasAds) { ads.setGain(GAIN_ONE); ads.setDataRate(RATE_ADS1115_250SPS); }
+  if (hasAds) { applyGain(1); ads.setDataRate(RATE_ADS1115_250SPS); }
   detTemp.begin(); detTemp.setWaitForConversion(false); detTemp.requestTemperatures();
   noInterrupts(); TCCR2A = _BV(WGM21); TCCR2B = _BV(CS21); OCR2A = 199; TIMSK2 = _BV(OCIE2A); interrupts();   // 16 MHz / 8 / 200 = 10 kHz
   Serial.print(F("READY ChromaLog-Uno ")); Serial.println(F(FW_VERSION));

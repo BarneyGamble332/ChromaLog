@@ -32,7 +32,11 @@ typedef const char __FlashStringHelper;
 #define digitalPinToPort(p) (p)
 #define portOutputRegister(p) (&g_port[p])
 #define digitalPinToBitMask(p) 1
-#define GAIN_ONE 1
+#define GAIN_ONE 0x0200
+#define GAIN_TWO 0x0400
+#define GAIN_FOUR 0x0600
+#define GAIN_EIGHT 0x0800
+#define GAIN_SIXTEEN 0x0A00
 #define RATE_ADS1115_250SPS 1
 inline unsigned long g_ms = 0;
 inline int g_pin[20] = {0}, g_mode[20] = {0}, g_pwm[20] = {0}, g_ain[20] = {0};
@@ -68,4 +72,7 @@ inline WireMock Wire;
 struct Servo { int pin = -1, angle = -1; bool attached() { return pin >= 0; } void attach(int p) { pin = p; } void detach() { pin = -1; } void write(int a) { angle = a; } };
 struct OneWire { uint8_t pin; OneWire(uint8_t p) : pin(p) {} };
 struct DallasTemperature { OneWire *w; DallasTemperature(OneWire *x) : w(x) {} void begin() {} void setWaitForConversion(bool) {} void requestTemperatures() {} float getTempCByIndex(int) { return g_temp[w->pin]; } };
-struct Adafruit_ADS1115 { bool begin() { return g_hasAds; } void setGain(int) {} void setDataRate(int) {} int readADC_SingleEnded(int ch) { return ch; } float computeVolts(int ch) { return g_adsV[ch]; } };
+inline int g_adsGain = 0;
+/* wie der echte ADS1115: gemessen wird höchstens bis zum Ende des Messbereichs */
+struct Adafruit_ADS1115 { bool begin() { return g_hasAds; } void setGain(int g) { g_adsGain = g; } void setDataRate(int) {} int readADC_SingleEnded(int ch) { return ch; }
+  float computeVolts(int ch) { float fs = g_adsGain == GAIN_TWO ? 2.048f : g_adsGain == GAIN_FOUR ? 1.024f : g_adsGain == GAIN_EIGHT ? 0.512f : g_adsGain == GAIN_SIXTEEN ? 0.256f : 4.096f; return g_adsV[ch] > fs ? fs : g_adsV[ch]; } };

@@ -1,6 +1,6 @@
 # ChromaLog – Übergabe für die Weiterentwicklung
 
-Dieses Dokument ist für alle gedacht, die am Programm weiterarbeiten, Mensch oder KI-Modell. Es beschreibt, was das Projekt ist, wie der Code aufgebaut ist, welche Regeln gelten und was offen ist. Stand: Version 0.11, 15.11.2026.
+Dieses Dokument ist für alle gedacht, die am Programm weiterarbeiten, Mensch oder KI-Modell. Es beschreibt, was das Projekt ist, wie der Code aufgebaut ist, welche Regeln gelten und was offen ist. Stand: Version 0.12, 20.11.2026.
 
 ## 1 Worum es geht
 - **Projekt Gewässermessung:** ein mobiles Analysegerät (Mini-HPLC im Koffer), das Stoffe in Gewässern vor Ort trennt, erkennt und deren Konzentration bestimmt.
@@ -21,11 +21,12 @@ Dieses Dokument ist für alle gedacht, die am Programm weiterarbeiten, Mensch od
 | Arduino-Sketch, Pins, Sicherheit | `firmware/README.md` |
 
 ## 3 Stand
-**Fertig und automatisch getestet (mit Simulator bzw. nachgebildeten Anschlüssen):** alle Punkte aus dem README, 64 Anforderungen in `docs/ANFORDERUNGEN.md`.
+**Fertig und automatisch getestet (mit Simulator bzw. nachgebildeten Anschlüssen):** alle Punkte aus dem README, 65 Anforderungen in `docs/ANFORDERUNGEN.md`.
 
 **Am echten Gerät bestätigt:**
 - Android-App läuft am Handy; Fließbild lässt sich dort gut bedienen (Ziehen, Verbinden).
 - Linux-Programm verbindet sich über USB mit dem Arduino Uno (15.11.2026).
+- ADS1115 mit Mess- und Referenzdiode liefert Werte, die UV-LED schaltet über den MOSFET (16. und 20.11.2026). Das Signal ist schwach (etwa 0,1 V bei 1 cm Abstand); deshalb seit 0.12 die einstellbare Verstärkung.
 
 **Am echten Gerät noch nicht geprüft:** alles Weitere. Insbesondere die Messwerte des Detektors, jedes Bauteil der Steuerung (Pumpen, Ventile, Heizung, Endschalter), Bluetooth zum Gerät, der Methodenlauf. Der Sketch ist übersetzt und seine Logik am PC geprüft, mehr nicht.
 
@@ -55,7 +56,7 @@ Die App ist bewusst einfach gehalten: reines HTML, CSS und JavaScript ohne Frame
 | `css/app.css` | Gestaltung hell/dunkel, Druck; Schriften liegen lokal in `fonts/` |
 
 Dazu:
-- `firmware/chromalog_uno/` – Sketch für den Uno (Version 0.3).
+- `firmware/chromalog_uno/` – Sketch für den Uno (Version 0.4).
 - `desktop/` – Linux-Programm mit Electron (`main.js`, `ports.js` für die Auswahl des Anschlusses).
 - `mobile/` – Android-App mit Capacitor. Der Ordner `android/` wird **nicht** eingecheckt, sondern im Bau erzeugt und mit `tools/android_patch.py` angepasst (Rechte, Version, Signatur).
 - `tools/` – `copy_web.sh` (kopiert die Web-App nach `desktop/app` bzw. `mobile/www`), `build_firmware.sh`.
@@ -66,6 +67,7 @@ Dazu:
 - **Zustand:** in `app.js` das Objekt `S`, in `steuerung.js` das Objekt `CTL`.
 - **Nach dem Verbinden** meldet der Uno `READY …`; die App sendet darauf die Messrate, meldet alle Bauteile des Aufbaus an (`ctlConfigure`) und schaltet die Verbindungsüberwachung ein (`WATCHDOG 10`, danach alle 2 s `PING`).
 - **Simulator:** startet nicht von selbst. Nur über „Simulator starten“ oder die Adresse mit `?demo=1` (so laufen auch die Browser-Tests).
+- **Einstellungen, die der Uno beim Neustart vergisst** (bisher nur der Messbereich `GAIN`), tragen in der Bibliothek `keep: true`. Die App merkt sich den Wert im Bauteil und sendet ihn nach jedem `READY` erneut.
 - **Bauteile der Steuerung** werden in der App angelegt, nicht im Sketch. Die Bibliothek steht in `CTL_LIB` (`js/control.js`); ein neues Bauteil braucht dort einen Eintrag und, wenn es eine neue Art ist, die Behandlung im Sketch und im Simulator.
 
 ## 5 Geräteprotokoll
@@ -74,13 +76,13 @@ Textzeilen, 115200 Baud, Zeilenende `\n`.
 Gerät → App:
 | Zeile | Bedeutung |
 | --- | --- |
-| `READY ChromaLog-Uno 0.3` | nach dem Start |
+| `READY ChromaLog-Uno 0.4` | nach dem Start |
 | `D,t_s,uv_AU,leitf,druck,temp,fluss,B,VENTIL` | Datenzeile, 9 Felder, leere Felder erlaubt |
 | `V,kurzname,wert` | Wert eines Bauteils; auch `V,uv_i` und `V,uv_r` (Diodenspannungen) |
 | `E,STOP,name` / `E,LIMIT,name` | Lecksensor bzw. Endschalter hat ausgelöst |
 | `# text` | Hinweis, erscheint im Protokoll |
 
-App → Gerät: `FLOW`, `PCTB`, `VALVE LOAD|INJECT`, `ZERO`, `DARK`, `LED 0|1`, `RATE hz`, `STOP`, `CLEAR`, `CFG kurzname ART pins [max] [schritte_je_ml]`, `CFG kurzname LIMIT pin [ziel] [richtung]`, `SET kurzname wert`, `VOL kurzname ml`, `WATCHDOG s`, `PING`.
+App → Gerät: `FLOW`, `PCTB`, `VALVE LOAD|INJECT`, `ZERO`, `DARK`, `LED 0|1`, `GAIN 1|2|4|8|16`, `RATE hz`, `STOP`, `CLEAR`, `CFG kurzname ART pins [max] [schritte_je_ml]`, `CFG kurzname LIMIT pin [ziel] [richtung]`, `SET kurzname wert`, `VOL kurzname ml`, `WATCHDOG s`, `PING`.
 
 Der alte Stufe-1-Sketch (7 Spalten ohne Kennbuchstabe) wird weiter erkannt.
 
@@ -90,9 +92,9 @@ Wer das Protokoll ändert, muss vier Stellen zusammen ändern: Sketch, `parseLin
 ### Tests
 ```
 npm install            # einmalig, holt Playwright
-npm test               # Rechenkerne, 33 Tests
+npm test               # Rechenkerne, 34 Tests
 npm run test:ui        # Oberfläche im Browser, 15 Tests
-npm run test:fw        # Logik des Sketches am PC, 51 Prüfungen
+npm run test:fw        # Logik des Sketches am PC, 58 Prüfungen
 tools/build_firmware.sh   # Sketch übersetzen (avr-gcc)
 ```
 Die Browser-Tests brauchen Chrome oder Chromium; mit installiertem Chrome: `PW_CHANNEL=chrome npm run test:ui`. Alles läuft auch bei jedem Push über GitHub Actions; beide Abläufe („Tests“, „Pakete“) müssen grün sein.

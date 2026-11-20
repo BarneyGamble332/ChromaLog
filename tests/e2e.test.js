@@ -239,7 +239,7 @@ test('A-73 Bauteile des Aufbaus erscheinen im Reiter „Messen“ und lassen sic
   await p.evaluate("ctlL().parts.find(q => q.key === 'heizung').onMess = false; ctlRenderNodes()");
   assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), await p.evaluate(active + ' - 1'), 'ausgeblendetes Bauteil fehlt');
   await p.evaluate("location.hash = '#steuerung'"); await p.selectOption('#ctlSel', { label: 'Stufe 1 – UV-Detektor' }); await p.evaluate("location.hash = '#messen'");
-  assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), 7, 'Reiter Messen folgt dem gewählten Aufbau');
+  assert.equal(await p.evaluate("document.querySelectorAll('#mParts .node').length"), 8, 'Reiter Messen folgt dem gewählten Aufbau (Stufe 1 mit Messbereich)');
   await p.evaluate("ctlL().parts.length = 0; ctlRenderNodes()");
   assert.equal(await p.evaluate("document.querySelector('#mpCard').hidden && !document.querySelector('#manCard').hidden"), true, 'ohne Bauteile erscheint wieder die Handsteuerung');
   await p.click('#mpStop', { force: true }).catch(() => {});
@@ -328,7 +328,7 @@ test('A-78 Start ohne Simulation: kein Simulator, keine Beispieldaten, Aufbau un
   assert.deepEqual(errors, []); await ctx.close();
 });
 
-test('A-79 Arduino über USB (nachgebildeter Anschluss): verbinden, Detektor bedienen, Lauf aufzeichnen, automatisch wiederverbinden', async () => {
+test('A-79 / A-83 Arduino über USB (nachgebildeter Anschluss): verbinden, Detektor bedienen, Lauf aufzeichnen, automatisch wiederverbinden', async () => {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'de-DE' }); await ctx.addInitScript(FAKE_SERIAL);
   const p = await ctx.newPage(), errors = []; p.on('pageerror', e => errors.push(String(e)));
   await p.goto(BASE + '#messen'); await p.waitForFunction("typeof CTL !== 'undefined' && CTL.layouts.length && !document.querySelector('#connCard').hidden");
@@ -344,8 +344,9 @@ test('A-79 Arduino über USB (nachgebildeter Anschluss): verbinden, Detektor bed
   const part = n => p.locator('#mParts .node:has-text("' + n + '")');
   await p.waitForFunction("[...document.querySelectorAll('#mParts .node')].some(n => n.textContent.includes('Messdiode') && n.textContent.includes('2,1000'))");
   await part('UV-LED').locator('button:has-text("An")').click(); await part('Dunkelwert').locator('button').click(); await part('Autozero').locator('button').click();
+  await part('Messbereich').locator('button:has-text("0,512 V")').click();
   const w = await p.evaluate('fakePort.written');
-  for (const c of ['RATE 1\n', 'CLEAR\n', 'WATCHDOG 10\n', 'LED 1\n', 'DARK\n', 'ZERO\n']) assert.ok(w.includes(c), 'gesendet: ' + JSON.stringify(c) + ' in ' + JSON.stringify(w));
+  for (const c of ['RATE 1\n', 'CLEAR\n', 'GAIN 1\n', 'WATCHDOG 10\n', 'LED 1\n', 'DARK\n', 'ZERO\n', 'GAIN 8\n']) assert.ok(w.includes(c), 'gesendet: ' + JSON.stringify(c) + ' in ' + JSON.stringify(w));
   assert.ok(!w.some(c => c.startsWith('CFG')), 'der Aufbau „Stufe 1“ meldet nichts an: ' + JSON.stringify(w.filter(c => c.startsWith('CFG'))));
   assert.equal(await p.evaluate("document.querySelector('#simBanner').hidden"), true);
   /* kurzer Lauf mit der Detektortest-Methode; das „Gerät“ liefert einen Messwert je Sekunde */
@@ -361,5 +362,8 @@ test('A-79 Arduino über USB (nachgebildeter Anschluss): verbinden, Detektor bed
   await p.evaluate("clearInterval(feed); localStorage.setItem('fakeGranted', '1')"); await p.reload();
   await p.waitForFunction("typeof S !== 'undefined' && S.dev && S.dev.kind === 'usb'", null, { timeout: 10000 });
   assert.equal(await p.evaluate("document.querySelector('#connCard').hidden"), true);
+  /* A-83: die gewählte Verstärkung bleibt erhalten und wird nach dem Neustart des Arduino erneut gesendet */
+  await p.evaluate("fakePort.push('READY ChromaLog-Uno 0.4\\r\\n')"); await p.waitForFunction("fakePort.written.includes('GAIN 8\\n')", null, { timeout: 5000 });
+  assert.ok(!(await p.evaluate('fakePort.written')).includes('GAIN 1\n'), 'nicht auf Verstärkung 1 zurückgesetzt');
   assert.deepEqual(errors, []); await ctx.close();
 });

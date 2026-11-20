@@ -4,7 +4,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const CH = ['uv', 'cond', 'press', 'temp', 'flow', 'b'];
-const APP_VERSION = '0.11';
+const APP_VERSION = '0.12';
 /* Vorführbetrieb: die Adresse mit ?demo=1 startet mit Simulator und Beispiel-Lauf. Ohne das startet die App für das echte Gerät. */
 const DEMO = typeof location !== 'undefined' && /[?&]demo(=|&|$)/.test(location.search);
 

@@ -1,6 +1,6 @@
 # Inbetriebnahme Stufe 1: UV-Detektor am Arduino Uno
 
-Diese Anleitung führt vom Aufspielen des Sketches bis zur ersten Stabilitätsmessung. Sie gilt für ChromaLog ab Version 0.10 und den Sketch ab Version 0.3.
+Diese Anleitung führt vom Aufspielen des Sketches bis zur ersten Stabilitätsmessung. Sie gilt für ChromaLog ab Version 0.12 und den Sketch ab Version 0.4.
 
 **Stand der Prüfung:** Software und Sketch sind automatisch getestet, aber nur mit nachgebildeten Geräten. Mit einem echten Arduino ist dieser Ablauf noch nicht durchgespielt. Rechne beim ersten Mal mit Kleinigkeiten und melde, was nicht passt.
 
@@ -40,18 +40,28 @@ Ohne MOSFET leuchtet die LED dauernd; dann zählt für den Dunkelwert das Ausste
 - Steht der Arduino nicht in der Liste: „Arduino nicht in der Liste? Alle Anschlüsse zeigen“ wählen.
 - Fehlt er auch dort: Arduino IDE schließen, Kabel neu stecken, im Terminal `ls /dev/ttyACM* /dev/ttyUSB*` prüfen. Chromium aus dem Snap-Paket braucht einmalig `sudo snap connect chromium:raw-usb`.
 
-Nach dem Verbinden startet der Uno neu. Unter „System“ zeigt die Geräte-Konsole dann `READY ChromaLog-Uno 0.3`. Steht dort `# ADS1115 nicht gefunden`, stimmt die Verdrahtung von A4/A5, 5 V oder GND nicht.
+Nach dem Verbinden startet der Uno neu. Unter „System“ zeigt die Geräte-Konsole dann `READY ChromaLog-Uno 0.4`. Steht dort `# ADS1115 nicht gefunden`, stimmt die Verdrahtung von A4/A5, 5 V oder GND nicht.
 
 Im Browser und im Linux-Programm verbindet sich ChromaLog beim nächsten Start von selbst wieder mit dem zuletzt benutzten Anschluss.
 
 ## 4 Aufbau wählen
-Im Reiter „Steuerung“ den Aufbau **„Stufe 1 – UV-Detektor“** wählen. Er enthält UV-LED, Autozero, Dunkelwert, Extinktion, Temperatur sowie die Spannungen an Mess- und Referenzdiode. Dieselben Bauteile erscheinen im Reiter „Messen“.
+Im Reiter „Steuerung“ den Aufbau **„Stufe 1 – UV-Detektor“** wählen. Er enthält UV-LED, Autozero, Dunkelwert, Extinktion, Temperatur, die Spannungen an Mess- und Referenzdiode und den Messbereich (Verstärkung). Dieselben Bauteile erscheinen im Reiter „Messen“.
 
 ## 5 Einrichten
 1. Küvette mit destilliertem Wasser einsetzen, Gehäuse schließen, „UV-LED“ auf „An“.
-2. Die Spannungen ansehen: **Messdiode** und **Referenzdiode** sollten zwischen etwa 1 V und 3,5 V liegen.
-   - Über 4 V ist der Eingang übersteuert; die Konsole meldet das. Abhilfe: kleinere Blende oder mehr Abstand.
-   - Deutlich unter 0,5 V ist zu wenig Licht: Blende größer, Diode näher, Ausrichtung prüfen.
+2. Die Spannungen ansehen und den **Messbereich** wählen. Beide Dioden sollten möglichst gut in den Bereich passen, die größere von beiden zwischen etwa der Hälfte und drei Vierteln des Bereichs:
+
+   | Größere Diodenspannung | Messbereich |
+   | --- | --- |
+   | über 1,5 V | 4,096 V (×1) |
+   | 0,75 – 1,5 V | 2,048 V (×2) |
+   | 0,35 – 0,75 V | 1,024 V (×4) |
+   | 0,18 – 0,35 V | 0,512 V (×8) |
+   | unter 0,18 V | 0,256 V (×16) |
+
+   - Am Ende des Bereichs ist der Eingang übersteuert; die Konsole meldet das. Abhilfe: einen größeren Bereich wählen, sonst kleinere Blende oder mehr Abstand.
+   - Erfahrung mit dem ersten Aufbau (20.11.2026): Die UV-C-LED liefert bei 1 cm Abstand nur etwa 0,1 V. Deshalb den Lichtweg kurz halten (LED, Küvette, Messdiode dicht beieinander) und die Referenzdiode in wenigen Millimetern Abstand schräg zur LED setzen. Unter etwa 0,05 V an einer Diode bestimmt sie das Rauschen.
+   - Nach dem Wechsel des Messbereichs Dunkelwert und Autozero neu setzen.
 3. **Dunkelwert:** LED aus (oder Modul ausstecken), Gehäuse zu, einige Sekunden warten, „Dunkelwert“ drücken. Die Konsole bestätigt mit `# OK Dunkelwert`.
 4. LED wieder an und **15 Minuten einlaufen lassen**; die LED driftet, solange sie warm wird.
 5. **Autozero** drücken. Die Extinktion steht jetzt bei 0 mAU.

@@ -6,7 +6,7 @@
  *
  * Protokoll (Textzeilen):
  *   Gerät → App:  D,<t_s>,<uv_AU>,<leitf_uS>,<druck_bar>,<temp_C>,<fluss_ml_min>,<B_%>,<LOAD|INJECT>
- *   App → Gerät:  FLOW x | PCTB x | VALVE LOAD|INJECT | ZERO | LED 0|1 | RATE hz | STOP
+ *   App → Gerät:  FLOW x | PCTB x | VALVE LOAD|INJECT | ZERO | LED 0|1 | GAIN 1|2|4|8|16 | RATE hz | STOP
  *   Stufe-1-Sketch: zeit_s,I_V,R_V,verhaeltnis,extinktion_AU,temp_C,uebersteuert  (Befehle n, d)
  */
 
@@ -81,6 +81,7 @@ class SimDevice {
     else if (c === 'RATE' && isFinite(v)) this.rate = Math.max(1, Math.min(50, v));
     else if (c === 'LED') this.led = p[1] !== '0';
     else if (c === 'ZERO') this.zero = this.uvF;
+    else if (c === 'GAIN') { if ([1, 2, 4, 8, 16].includes(v)) { this.gain = v; this.out.push('# OK GAIN ' + v + ', Messbereich ' + (4.096 / v).toFixed(3) + ' V'); } else this.out.push('# FEHLER GAIN 1, 2, 4, 8 oder 16'); }
     else if (c === 'STOP') this.flowSet = 0;
     else if (c === 'CLEAR') this.gen = {};
     else if (c === 'CFG' && p[1]) { const old = this.gen[p[1]] || {}; this.gen[p[1]] = { kind: (p[2] || '').toUpperCase(), v: old.v || 0, max: parseFloat(p[4]) || 60, vol: old.vol != null ? old.vol : (parseFloat(p[4]) || 60) * 0.7, temp: old.temp || 22 }; }

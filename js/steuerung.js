@@ -15,15 +15,19 @@ function ctlDefaults() {
     inj: ctlMake('inj', 470, 20, { name: 'Injektionsventil' }), col: ctlMake('column', 620, 20), heat: ctlMake('heater', 620, 160, { name: 'Säulenheizung' }), uv: ctlMake('uv', 770, 20, { name: 'UV-Detektor' }), waste: ctlMake('waste', 920, 20),
     b: ctlMake('pctb', 170, 160, { name: 'Anteil B' }), led: ctlMake('uvled', 770, 160), zero: ctlMake('zero', 920, 160), temp: ctlMake('ds18', 470, 160), syr: ctlMake('syringe', 320, 160, { name: 'Spritzenpumpe A (Beispiel)', key: 'pumpea' }) };
   const s1 = { led: ctlMake('uvled', 20, 20), cuv: ctlMake('sample', 170, 20, { name: 'Küvette' }), uv: ctlMake('uv', 320, 20, { name: 'Extinktion' }), temp: ctlMake('ds18', 470, 20),
-    zero: ctlMake('zero', 20, 160), dark: ctlMake('dark', 170, 160, { name: 'Dunkelwert' }), ui: ctlMake('uv_i', 320, 160, { name: 'Messdiode' }), ur: ctlMake('uv_r', 470, 160, { name: 'Referenzdiode' }) };
+    zero: ctlMake('zero', 20, 160), dark: ctlMake('dark', 170, 160, { name: 'Dunkelwert' }), ui: ctlMake('uv_i', 320, 160, { name: 'Messdiode' }), ur: ctlMake('uv_r', 470, 160, { name: 'Referenzdiode' }), gain: ctlMake('uvgain', 620, 160, { name: 'Messbereich' }) };
   const sim = { id: uid(), name: 'Mini-HPLC (Simulator)', parts: Object.values(a), links: [[a.bottle, a.flow], [a.flow, a.press], [a.press, a.inj], [a.inj, a.col], [a.col, a.uv], [a.uv, a.waste]].map(l => ({ from: l[0].id, to: l[1].id })),
       procs: [{ id: uid(), name: 'Anfahren und injizieren', steps: [{ type: 'set', key: 'fluss', value: '1' }, { type: 'until', src: 'D:press', op: '>', value: 5, timeout: 60 }, { type: 'set', key: 'led', value: '1' },
         { type: 'wait', sec: 10 }, { type: 'set', key: 'zero', value: '' }, { type: 'set', key: 'inj', value: 'INJECT' }, { type: 'wait', sec: 20 }, { type: 'set', key: 'inj', value: 'LOAD' }] }] };
   const stage1 = { id: uid(), name: 'Stufe 1 – UV-Detektor', parts: Object.values(s1), links: [{ from: s1.led.id, to: s1.cuv.id }, { from: s1.cuv.id, to: s1.uv.id }], procs: [] };
   return DEMO ? [sim, stage1] : [stage1, sim];       /* im echten Betrieb steht der Aufbau fürs Gerät vorn */
 }
-function ctlSave() { Store.put('kv', { id: 'control', ver: 2, cur: CTL.cur, layouts: CTL.layouts }); }
-function ctlConfigure(clear) { if (!S.dev || !CTL.layouts.length) return; if (clear) cmd('CLEAR'); configCommands(ctlL().parts).forEach(c => cmd(c)); }
+function ctlSave() { Store.put('kv', { id: 'control', ver: 3, cur: CTL.cur, layouts: CTL.layouts }); }
+function ctlConfigure(clear) {
+  if (!S.dev || !CTL.layouts.length) return; if (clear) cmd('CLEAR'); configCommands(ctlL().parts).forEach(c => cmd(c));
+  /* Einstellungen, die der Arduino beim Neustart vergisst (z. B. die Verstärkung), erneut senden */
+  ctlL().parts.filter(p => p.keep).forEach(p => { const v = CTL.values[p.key] != null ? CTL.values[p.key] : p.value; if (v == null || v === '') return; CTL.values[p.key] = v; cmd(partCommand(p, v)); });
+}
 function ctlValue(key, v) { CTL.meas[key] = v; }
 function ctlLogLine(text) {
   CTL.log.push(new Date().toLocaleTimeString(LANG === 'de' ? 'de-DE' : 'en-GB') + '  ' + text);
@@ -34,7 +38,7 @@ function ctlRenderLog() { const e = $('#ctlLog'); e.textContent = CTL.log.length
 function ctlSend(p, v) {
   if (!S.dev) { toast(t('t_noconn'), true); return false; }
   if (S.phase !== 'idle' && partLockedInRun(p)) { toast(t('ctl_runlock'), true); return false; }
-  CTL.values[p.key] = v; const c = partCommand(p, v); cmd(c); ctlLogLine(c); return true;
+  CTL.values[p.key] = v; if (p.keep) { p.value = v; ctlSave(); } const c = partCommand(p, v); cmd(c); ctlLogLine(c); return true;
 }
 function ctlStopAll(byDevice) {
   if (CTL.run) ctlProcEnd('stopped');
@@ -444,6 +448,12 @@ async function ctlInit() {
       if (l && !l.parts.some(q => q.source === 'V:uv_i')) {
         const y = Math.max(0, ...l.parts.map(q => q.y)) + 140;
         [['dark', 'Dunkelwert'], ['uv_i', 'Messdiode'], ['uv_r', 'Referenzdiode']].forEach((q, i) => { const n = ctlMake(q[0], 20 + i * 150, y, { name: q[1] }); n.key = uniqueKey(n.key, l.parts); l.parts.push(n); });
+      }
+    }
+    if (!(sv.ver >= 3)) {                      /* Version 0.12: Messbereich (Verstärkung) zum Aufbau „Stufe 1“ hinzufügen */
+      const l = CTL.layouts.find(q => q.name === 'Stufe 1 – UV-Detektor');
+      if (l && !l.parts.some(q => /^GAIN\b/.test(q.cmd || ''))) {
+        const n = ctlMake('uvgain', Math.max(0, ...l.parts.map(q => q.x)) + 150, Math.max(0, ...l.parts.map(q => q.y)), { name: 'Messbereich' }); n.key = uniqueKey(n.key, l.parts); l.parts.push(n);
       }
       ctlSave();
     }
