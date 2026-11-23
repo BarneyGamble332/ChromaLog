@@ -1,6 +1,6 @@
 # ChromaLog – Anforderungen und Nachweise
 
-Stand: 20.11.2026 · gilt für Version 0.12
+Stand: 23.11.2026 · gilt für Version 0.13
 
 Dieses Dokument hält fest, was die Software können muss, und womit jede Anforderung nachgewiesen ist. Es ist die Grundlage für eine spätere Validierung. Bei jeder Änderung an der Software wird es mitgepflegt.
 
@@ -99,13 +99,14 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 ## 7 Betrieb mit dem echten Gerät
 | Nr. | Anforderung | Nachweis | Status |
 | --- | --- | --- | --- |
-| A-77 | Zu jedem Lauf stehen Mittelwert, Rauschen, Drift je 10 min und Spanne der Basislinie bei den Laufdaten und im Bericht. | Automatisch | erfüllt |
+| A-77 | Zu jedem Lauf stehen Mittelwert, Rauschen, Drift je 10 min und Spanne der Basislinie bei den Laufdaten und im Bericht. Seit 0.13 ist „Rauschen“ die Standardabweichung um die Trendlinie (dieselbe Gerade wie für die Drift); die Rauschschätzung der Peakerkennung steht getrennt darunter. | Automatisch (A-77, A-84) | erfüllt |
 | A-78 | Die App startet ohne Simulator und ohne Beispieldaten und bietet das Verbinden mit dem Gerät an. Der Simulator läuft nur auf ausdrücklichen Wunsch (oder mit `?demo=1` in der Adresse), ist dann deutlich gekennzeichnet und startet nicht von selbst wieder. Simulierte Läufe lassen sich gesammelt löschen. | Automatisch im Browser | erfüllt |
 | A-79 | Über USB verbunden zeigt die App die Werte des Sketches (Extinktion, Temperatur, Diodenspannungen), bedient LED, Autozero und Dunkelwert, zeichnet einen Lauf auf, der nicht als simuliert gilt, und verbindet sich nach dem Neustart von selbst wieder. | Automatisch im Browser mit nachgebildetem seriellen Anschluss | am Gerät ungetestet |
 | A-80 | Der Sketch meldet die Spannungen an Mess- und Referenzdiode und warnt bei Übersteuerung (kurz vor dem Ende des Messbereichs). | Logiktest am PC (F-63, F-64) | Spannungen am Gerät bestätigt (16.11.2026, Rückmeldung des Nutzers); Warnung am Gerät ungetestet |
 | A-81 | Kalibriergerade aus Küvetten-Messungen (Mittelwert gegen Konzentration) mit Nachweisgrenze für den statischen Detektortest. | – | nicht umgesetzt |
 | A-82 | Bei der Wahl des seriellen Anschlusses stehen USB-Geräte vorn; im Browser werden zuerst nur Arduino-Boards und übliche USB-Wandler angeboten, alle Anschlüsse auf Wunsch. Im Linux-Programm wird ein einzelner erkannter Arduino ohne Nachfrage genommen, die alten Anschlüsse (ttyS…) erscheinen erst auf Wunsch. | Automatisch (Sortierung im Rechenkern, Filter im Browser mit nachgebildetem Anschluss). Das Auswahlfenster des Linux-Programms selbst ist nicht automatisch geprüft. | Linux-Programm: am 15.11.2026 mit Arduino Uno verbunden (Rückmeldung des Nutzers). Browser: am Gerät ungetestet |
 | A-83 | Der Messbereich des ADS1115 lässt sich in fünf Stufen einstellen (4,096 bis 0,256 V, Befehl `GAIN`), als Bauteil „Messbereich“ im Aufbau Stufe 1 und in der Bibliothek. Die App merkt sich die Stufe und sendet sie nach jedem Neustart des Arduino erneut; ein gespeicherter Aufbau aus älteren Versionen erhält das Bauteil. Ungültige Stufen lehnt der Sketch ab. | Automatisch (A-83, Oberflächentest A-79 / A-83 mit nachgebildetem Anschluss, Logiktest am PC F-64); Übernahme eines Aufbaus aus Version 0.11 einmalig von Hand im Browser geprüft | am Gerät ungetestet |
+| A-84 | Zu jedem Lauf stehen zusätzlich Drift je Stunde sowie Kurzzeitrauschen (Abschnitte von etwa 1 min, ab 10 min Laufzeit) und Langzeitrauschen (Abschnitte von 10 min, ab 60 min), angelehnt an ASTM E685: Trendlinie abgezogen, je Abschnitt größter minus kleinster Wert, gemittelt. Gekennzeichnet als „angelehnt, nicht normgerecht geprüft“. Dazu die Methode „Detektortest ASTM (60 min, ohne Pumpe)“. | Automatisch (A-84, mit Daten bekannter Drift und bekannten Rauschens) | erfüllt im Rechenkern; Normtreue nicht geprüft (Norm liegt nicht vor) |
 
 ## Bekannte Grenzen
 - Die Browser-Tests decken die wichtigsten Abläufe ab, nicht jede Schaltfläche. Die Bedienung am Handy ist nicht getestet.
@@ -127,3 +128,4 @@ Die Referenzdaten der Rechenkern-Tests sind berechnete Chromatogramme aus Gauß-
 | 14.11.2026 | 0.11 | Auswahl des seriellen Anschlusses überarbeitet (A-82), nachdem der Arduino in der Liste nicht zu finden war. Insgesamt 64 Anforderungen. |
 | 15.11.2026 | 0.11 | Verbindung des Linux-Programms mit dem Arduino Uno über USB vom Nutzer bestätigt (A-82). Neu: `docs/ENTWICKLUNG.md` als Übergabe für die Weiterentwicklung. Keine Änderung am Programm. |
 | 20.11.2026 | 0.12 | Einstellbare Verstärkung des ADS1115 (A-83, Sketch 0.4), weil die Dioden am ersten Aufbau nur etwa 0,1 V liefern. Insgesamt 65 Anforderungen. |
+| 23.11.2026 | 0.13 | Rauschen als Streuung um die Trendlinie (A-77 geändert), weil die bisherige Anzeige bei sehr ruhigem Signal 0,000 mAU zeigte. Kennzahlen angelehnt an ASTM E685 und Methode „Detektortest ASTM (60 min)“ (A-84). Insgesamt 66 Anforderungen. |

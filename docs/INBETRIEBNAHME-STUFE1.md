@@ -1,6 +1,6 @@
 # Inbetriebnahme Stufe 1: UV-Detektor am Arduino Uno
 
-Diese Anleitung führt vom Aufspielen des Sketches bis zur ersten Stabilitätsmessung. Sie gilt für ChromaLog ab Version 0.12 und den Sketch ab Version 0.4.
+Diese Anleitung führt vom Aufspielen des Sketches bis zur ersten Stabilitätsmessung. Sie gilt für ChromaLog ab Version 0.13 und den Sketch ab Version 0.4.
 
 **Stand der Prüfung:** Software und Sketch sind automatisch getestet, aber nur mit nachgebildeten Geräten. Mit einem echten Arduino ist dieser Ablauf noch nicht durchgespielt. Rechne beim ersten Mal mit Kleinigkeiten und melde, was nicht passt.
 
@@ -71,7 +71,10 @@ Bei ausgeschalteter LED zeigt ChromaLog keine Extinktion an (Strich statt Zahl).
 ## 6 Stabilität messen (Testplan Schritt 2)
 1. Im Reiter „Messen“ die Methode **„Detektortest (10 min, ohne Pumpe)“** wählen, als Probenname z. B. „Wasser“, Probenart „Blindwert“.
 2. „Lauf starten“. Der Lauf zeichnet 10 Minuten lang einen Wert je Sekunde auf und öffnet danach die Auswertung.
-3. Unter „Laufdaten“ stehen **Mittelwert**, **Rauschen**, **Drift je 10 min** und **Spanne**.
+3. Unter „Laufdaten“ stehen **Rauschen (σ um Trendlinie)**, **Mittelwert**, **Drift je 10 min und je Stunde**, **Spanne** und das **Kurzzeitrauschen** angelehnt an ASTM E685.
+   - Die „Rauschschätzung der Peakerkennung“ darunter dient nur der Peakerkennung. Bei sehr ruhigem Signal kann sie 0 zeigen; für die Bewertung gilt σ um die Trendlinie.
+   - Erster Lauf am 23.11.2026 (Messbereich ×16, Messdiode 0,018 V, Referenz 0,088 V): Drift −0,007 mAU in 10 min, Spanne 0,105 mAU.
+4. Für Werte nach ASTM E685 (Drift je Stunde, Langzeitrauschen) die Methode **„Detektortest ASTM (60 min, ohne Pumpe)“** nehmen, nach mindestens 1 h Einlaufzeit und ohne starke Temperaturänderung im Raum.
 
 Ziele aus dem Konzept: Rauschen höchstens 1 mAU (0,001 AU), Drift höchstens 2 mAU in 10 Minuten.
 

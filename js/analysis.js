@@ -160,7 +160,33 @@ function baselineStats(tMin, y) {
   pts.forEach(q => { sx += q[0]; sy += q[1]; sxx += q[0] * q[0]; sxy += q[0] * q[1]; if (q[1] < lo) lo = q[1]; if (q[1] > hi) hi = q[1]; });
   const den = n * sxx - sx * sx, slope = den ? (n * sxy - sx * sy) / den : 0, icpt = (sy - slope * sx) / n;
   let sse = 0; pts.forEach(q => { sse += Math.pow(q[1] - (slope * q[0] + icpt), 2); });
-  return { n, mean: sy / n, drift10: slope * 10, noise: Math.sqrt(sse / (n - 2)), span: hi - lo, minutes: pts[n - 1][0] - pts[0][0] };
+  const minutes = pts[n - 1][0] - pts[0][0], res = pts.map(q => [q[0], q[1] - (slope * q[0] + icpt)]);
+  return { n, mean: sy / n, drift10: slope * 10, driftH: slope * 60, noise: Math.sqrt(sse / (n - 2)), span: hi - lo, minutes,
+    astmShort: astmPP(res, minutes, 1, 10), astmLong: astmLongTerm(res, minutes) };
+}
+
+/* Angelehnt an ASTM E685 (nicht normgerecht geprüft): Lauf ohne Drift (Trendlinie abgezogen) in gleich lange
+   Abschnitte von etwa segMin Minuten teilen, je Abschnitt größter minus kleinster Wert, Mittel über die Abschnitte.
+   Gibt null zurück, wenn weniger als minSeg Abschnitte entstehen oder ein Abschnitt weniger als 7 Punkte hat. */
+function astmSegments(res, minutes, segMin) {
+  const k = Math.round(minutes / segMin); if (k < 1) return null;
+  const t0 = res[0][0], len = minutes / k, seg = [];
+  for (let j = 0; j < k; j++) seg.push([]);
+  res.forEach(q => { seg[Math.min(k - 1, Math.floor((q[0] - t0) / len))].push(q[1]); });
+  return seg;
+}
+function astmPP(res, minutes, segMin, minSeg) {
+  const seg = astmSegments(res, minutes, segMin); if (!seg || seg.length < minSeg || seg.some(s => s.length < 7)) return null;
+  const pp = seg.map(s => Math.max(...s) - Math.min(...s));
+  return { value: pp.reduce((a, b) => a + b, 0) / pp.length, segments: seg.length, segMin: minutes / seg.length };
+}
+/* Langzeitrauschen: Mitten der 1-min-Abschnitte, darin je 10-min-Abschnitt größter minus kleinster Wert, gemittelt; ab 60 min */
+function astmLongTerm(res, minutes) {
+  if (Math.round(minutes / 10) < 6) return null;
+  const seg = astmSegments(res, minutes, 1); if (!seg || seg.some(s => s.length < 7)) return null;
+  const per = seg.length / Math.round(minutes / 10), mids = seg.map((s, j) => [j, (Math.max(...s) + Math.min(...s)) / 2]), pp = [];
+  for (let g = 0; g < Math.round(minutes / 10); g++) { const m = mids.filter(q => q[0] >= g * per && q[0] < (g + 1) * per).map(q => q[1]); if (m.length) pp.push(Math.max(...m) - Math.min(...m)); }
+  return { value: pp.reduce((a, b) => a + b, 0) / pp.length, segments: pp.length, segMin: minutes / pp.length };
 }
 
 /* Konzentration aus der Peakfläche; out = außerhalb des kalibrierten Bereichs */
@@ -170,4 +196,4 @@ function quantify(area, c) {
   return { v, out: v < c.min || v > c.max };
 }
 
-if (typeof module !== 'undefined') module.exports = { analyze, ANALYSIS_DEFAULTS, linFit, quantify, baselineStats };
+if (typeof module !== 'undefined') module.exports = { analyze, ANALYSIS_DEFAULTS, linFit, quantify, baselineStats, astmPP };

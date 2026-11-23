@@ -1,6 +1,6 @@
 # Validierungsplan Mini-HPLC mit ChromaLog (schlanke Fassung)
 
-Stand: 15.11.2026 · Entwurf 2 · gilt für das Gesamtsystem aus Gerät, Arduino-Sketch und ChromaLog
+Stand: 23.11.2026 · Entwurf 3 · gilt für das Gesamtsystem aus Gerät, Arduino-Sketch und ChromaLog
 
 ## 1 Zweck
 Der Plan soll mit überschaubarem Aufwand zeigen: **Das System kann, was eine HPLC grundsätzlich können muss** – gleichmäßig fördern, reproduzierbar aufgeben, trennen, linear messen und die Ergebnisse nachvollziehbar festhalten.
@@ -39,6 +39,8 @@ Der Plan folgt dem Stufenplan des Projekts. Jeder Teil kann geprüft werden, sob
 | V-01 | Rauschen und Drift | Küvette bzw. Zelle mit Wasser, 15 min einlaufen lassen, dann Methode „Detektortest (10 min)“; drei Läufe. Kennzahlen stehen beim Lauf. | Rauschen ≤ 0,001 AU; Drift ≤ 0,002 AU in 10 min – in allen drei Läufen |
 | V-02 | Linearität des Detektors | Koffein 0,5 / 1 / 2 / 5 / 10 / 20 mg/l, je 3 Messungen, Mittelwert gegen Konzentration | R² ≥ 0,995; größte Abweichung eines Punktes von der Geraden ≤ 5 % (ab 2 mg/l) |
 | V-03 | Dunkelwert | LED aus, Gehäuse zu, 10 min | Signal bleibt stabil, keine Sprünge beim Abdecken mit dem Tuch (kein Fremdlicht) |
+
+Für V-01 gilt als „Rauschen“ die Zeile **„Rauschen (σ um Trendlinie)“** in den Laufdaten, nicht die Rauschschätzung der Peakerkennung. Zum Vergleich mit Datenblättern von Laborgeräten zusätzlich **Kurzzeitrauschen** und **Drift je Stunde** (angelehnt an ASTM E685) festhalten, dafür einen Lauf mit der Methode „Detektortest ASTM (60 min)“ nach mindestens 1 h Einlaufzeit in einem Raum ohne starke Temperaturänderung.
 
 V-01 bis V-03 entsprechen den Zielen aus dem Stufe-1-Konzept. Für V-02 fehlt in ChromaLog noch die Auswertung für Küvetten-Messungen (Anforderung A-81); bis dahin die Mittelwerte in eine Tabelle übertragen.
 
@@ -119,3 +121,4 @@ Für eine bestimmte Messaufgabe (z. B. Benzotriazol im Kläranlagenablauf) folgt
 | --- | --- | --- |
 | 15.11.2026 | Entwurf 1 | Erste Fassung. Grenzwerte sind Vorschläge und noch nicht mit Messungen am Gerät abgeglichen. |
 | 15.11.2026 | Entwurf 2 | Aufwand berichtigt: die Tabelle nennt nur die reine Messzeit, der wirkliche Aufwand liegt deutlich höher. Wahl der Pumpe als offen vermerkt, Zusatz für Spritzenpumpen in Teil B. Grenzwerte bleiben vorerst wie vorgeschlagen. |
+| 23.11.2026 | Entwurf 3 | V-01: festgelegt, welche Rauschzahl gilt; ASTM-Kennzahlen ergänzt. |

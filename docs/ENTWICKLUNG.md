@@ -1,6 +1,6 @@
 # ChromaLog – Übergabe für die Weiterentwicklung
 
-Dieses Dokument ist für alle gedacht, die am Programm weiterarbeiten, Mensch oder KI-Modell. Es beschreibt, was das Projekt ist, wie der Code aufgebaut ist, welche Regeln gelten und was offen ist. Stand: Version 0.12, 20.11.2026.
+Dieses Dokument ist für alle gedacht, die am Programm weiterarbeiten, Mensch oder KI-Modell. Es beschreibt, was das Projekt ist, wie der Code aufgebaut ist, welche Regeln gelten und was offen ist. Stand: Version 0.13, 23.11.2026.
 
 ## 1 Worum es geht
 - **Projekt Gewässermessung:** ein mobiles Analysegerät (Mini-HPLC im Koffer), das Stoffe in Gewässern vor Ort trennt, erkennt und deren Konzentration bestimmt.
@@ -21,7 +21,7 @@ Dieses Dokument ist für alle gedacht, die am Programm weiterarbeiten, Mensch od
 | Arduino-Sketch, Pins, Sicherheit | `firmware/README.md` |
 
 ## 3 Stand
-**Fertig und automatisch getestet (mit Simulator bzw. nachgebildeten Anschlüssen):** alle Punkte aus dem README, 65 Anforderungen in `docs/ANFORDERUNGEN.md`.
+**Fertig und automatisch getestet (mit Simulator bzw. nachgebildeten Anschlüssen):** alle Punkte aus dem README, 66 Anforderungen in `docs/ANFORDERUNGEN.md`.
 
 **Am echten Gerät bestätigt:**
 - Android-App läuft am Handy; Fließbild lässt sich dort gut bedienen (Ziehen, Verbinden).
@@ -92,7 +92,7 @@ Wer das Protokoll ändert, muss vier Stellen zusammen ändern: Sketch, `parseLin
 ### Tests
 ```
 npm install            # einmalig, holt Playwright
-npm test               # Rechenkerne, 34 Tests
+npm test               # Rechenkerne, 35 Tests
 npm run test:ui        # Oberfläche im Browser, 15 Tests
 npm run test:fw        # Logik des Sketches am PC, 58 Prüfungen
 tools/build_firmware.sh   # Sketch übersetzen (avr-gcc)

@@ -330,3 +330,20 @@ test('A-83 Messbereich der Dioden: Befehl GAIN, keine Anmeldung, Simulator nimmt
   const sim = new SimDevice(); sim.send('GAIN 16'); assert.equal(sim.gain, 16); assert.ok(sim.out.some(l => l.startsWith('# OK GAIN 16')));
   sim.send('GAIN 3'); assert.equal(sim.gain, 16); assert.ok(sim.out.some(l => l.startsWith('# FEHLER')));
 });
+
+test('A-84 Rauschen um die Trendlinie und Kennzahlen angelehnt an ASTM E685', () => {
+  /* 10 min mit 1 Hz: Drift 0,5 mAU/min, darauf ±0,1 mAU im Wechsel → σ 0,1; Spitze-zu-Spitze je Abschnitt 0,2 */
+  const t = [], y = []; for (let i = 0; i < 600; i++) { t.push(i / 60); y.push(0.5 * (i / 60) + (i % 2 ? 0.1 : -0.1)); }
+  const b = baselineStats(t, y);
+  near(b.driftH, 30, 0.01, 'Drift je Stunde'); near(b.noise, 0.1, 0.02, 'σ um Trendlinie');
+  assert.ok(b.astmShort && b.astmShort.segments === 10, 'zehn Abschnitte zu etwa 1 min'); near(b.astmShort.value, 0.2, 0.02, 'Kurzzeitrauschen');
+  assert.equal(b.astmLong, null, 'Langzeitrauschen erst ab 60 min');
+  /* gleichbleibende Werte (unterhalb der Auflösung): die Peakerkennung sieht 0, σ um die Trendlinie nicht */
+  const t2 = [], y2 = []; for (let i = 0; i < 600; i++) { t2.push(i / 60); y2.push(i % 50 === 0 ? 0.1 : 0); }
+  assert.ok(baselineStats(t2, y2).noise > 0.01, 'σ um die Trendlinie zeigt seltene Ausreißer');
+  assert.equal(analyze(t2, y2, ANALYSIS_DEFAULTS).noise, 0, 'Schätzung der Peakerkennung ist 0');
+  /* 60 min: Langzeitrauschen aus den Mitten der 1-min-Abschnitte, hier eine langsame Welle mit 0,4 mAU Spitze zu Spitze */
+  const t3 = [], y3 = []; for (let i = 0; i < 3600; i++) { t3.push(i / 60); y3.push(0.2 * Math.sin(2 * Math.PI * (i / 60) / 10)); }
+  const b3 = baselineStats(t3, y3); assert.ok(b3.astmLong && b3.astmLong.segments === 6, 'sechs Abschnitte zu 10 min'); near(b3.astmLong.value, 0.4, 0.1, 'Langzeitrauschen');
+  assert.equal(baselineStats(t.slice(0, 300), y.slice(0, 300)).astmShort, null, 'Kurzzeitrauschen erst ab 10 min');
+});
