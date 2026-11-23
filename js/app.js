@@ -4,7 +4,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const CH = ['uv', 'cond', 'press', 'temp', 'flow', 'b'];
-const APP_VERSION = '0.13';
+const APP_VERSION = '0.13.1';
 /* Vorführbetrieb: die Adresse mit ?demo=1 startet mit Simulator und Beispiel-Lauf. Ohne das startet die App für das echte Gerät. */
 const DEMO = typeof location !== 'undefined' && /[?&]demo(=|&|$)/.test(location.search);
 
@@ -23,7 +23,7 @@ const DEFAULT_METHODS = [
 /* Kurz- und Langzeitrauschen angelehnt an ASTM E685 (A-84); row(k, v) baut eine Zeile */
 function astmRows(bs, row) {
   const v = (x, from) => x ? fmt(x.value, 4) + ' mAU <span class="hint">(' + t('a_astm_seg').replace('{n}', x.segments).replace('{m}', fmt(x.segMin, 1)) + ')</span>' : t('a_astm_from').replace('{n}', from);
-  return row('a_astm_s', v(bs.astmShort, 10)) + row('a_astm_l', v(bs.astmLong, 60)) + row('a_astm_hint', '<span class="hint">' + t('a_astm_note') + '</span>');
+  return row('a_astm_s', v(bs.astmShort, 10)) + row('a_astm_l', v(bs.astmLong, 60));
 }
 const DETECTOR_METHOD_60 = { id: 'm-detektor-60', name: 'Detektortest ASTM (60 min, ohne Pumpe)', column: '', solventA: '', solventB: '', flow: 0, runtime: 60, rate: 1, pmax: 10, autozero: false,
   gradient: [{ t: 0, b: 0 }, { t: 60, b: 0 }], events: [], compounds: [] };
@@ -364,9 +364,10 @@ function renderAnalysis() {
     res.peaks.map((p, i) => '<tr>' + n(i + 1) + '<td>' + (p.name ? esc(p.name) : '<span class="hint">' + t('unknown') + '</span>') + (p.manual ? '<span class="badge">' + t('a_man') + '</span>' : '') + '</td>' + n(concCell(r, p)) + n(fmt(p.rt, 3)) + n(fmt(p.area, 1)) + n(fmt(p.areaPct, 1)) + n(fmt(p.height, 2)) +
       n(fmt(p.w50, 1)) + n(fmt(p.plates, 0)) + n(fmt(p.tailing, 2)) + n(fmt(p.rs, 1)) + n(fmt(p.sn, 0)) + '<td><button type="button" class="btn small" data-rmpk="' + i + '" title="' + t('a_remove') + '" aria-label="' + t('a_remove') + '">✕</button></td></tr>').join('') + '</table>' +
     (res.peaks.some(p => { const c = concOf(r, p); return c && c.out; }) ? '<p class="hint">' + t('c_outside') + '</p>' : '');
-  const row = (k, v, mono) => '<dt>' + t(k) + '</dt><dd' + (mono ? ' class="mono"' : '') + '>' + v + '</dd>', bs = baselineStats(r.data.t, r.data.uv);
+  const row = (k, v, mono, wide) => '<div class="fact' + (wide ? ' wide' : '') + '"><dt>' + t(k) + '</dt><dd' + (mono ? ' class="mono"' : '') + '>' + v + '</dd></div>', bs = baselineStats(r.data.t, r.data.uv);
   $('#aMeta').innerHTML = row('sample', esc(r.name) + ' (' + t('ty_' + r.type) + (r.conc != null ? ', ' + fmt(r.conc, 1) + ' mg/l' : '') + ')') + row('method', esc(r.method.name)) + row('a_started', esc(dateStr(r.startedAt))) +
-    (r.site ? row('site', esc(r.site)) : '') + row('vol', fmt(r.vol, 0) + ' µl') + row('a_points', fmt(r.data.t.length, 0)) + (bs ? row('a_noise_trend', fmt(bs.noise, 4) + ' mAU') + row('a_mean', fmt(bs.mean, 3) + ' mAU') + row('a_drift', fmt(bs.drift10, 3) + ' mAU') + row('a_drift_h', fmt(bs.driftH, 3) + ' mAU/h') + row('a_span', fmt(bs.span, 3) + ' mAU') + astmRows(bs, row) : '') + row('a_noise_det', fmt(res.noise, 4) + ' mAU') + row('a_hash', (r.hash ? r.hash.slice(0, 16) + '… ' : '') + '<span style="font-family:var(--f-body);color:var(--' + (S.aHash === 'bad' ? 'crit' : S.aHash === 'ok' ? 'ok' : 'muted') + ')">' + t('hash_' + S.aHash) + '</span>', true);
+    (r.site ? row('site', esc(r.site)) : '') + row('vol', fmt(r.vol, 0) + ' µl') + row('a_points', fmt(r.data.t.length, 0)) + (bs ? row('a_noise_trend', fmt(bs.noise, 4) + ' mAU') + row('a_mean', fmt(bs.mean, 3) + ' mAU') + row('a_drift', fmt(bs.drift10, 3) + ' mAU') + row('a_drift_h', fmt(bs.driftH, 3) + ' mAU/h') + row('a_span', fmt(bs.span, 3) + ' mAU') + astmRows(bs, row) : '') + row('a_noise_det', fmt(res.noise, 4) + ' mAU') + row('a_hash', (r.hash ? r.hash.slice(0, 16) + '… ' : '') + '<span style="font-family:var(--f-body);color:var(--' + (S.aHash === 'bad' ? 'crit' : S.aHash === 'ok' ? 'ok' : 'muted') + ')">' + t('hash_' + S.aHash) + '</span>', true) +
+    (bs ? row('a_astm_hint', t('a_astm_note'), false, true) : '');
   $('#aManual').classList.toggle('on', S.aManualMode); $('#aHint').textContent = t(S.aManualMode ? 'a_manual_hint' : 'hint_zoom');
   $('#aClear').disabled = !(S.aEdits.manual.length || S.aEdits.removed.length);
   $('#aCompare').innerHTML = S.runs.filter(q => q.id !== r.id).slice(0, 30).map(q => { const k = S.aOverlay.indexOf(q.id);
@@ -439,6 +440,7 @@ function reportBody(r, res) {
   h += '<h2>' + t('rep_integ') + '</h2><div class="kv">' + kv(t('a_sn'), fmt(p.sn, 1)) + kv(t('a_minw'), fmt(p.minWidth, 1)) + kv(t('a_base'), fmt(p.baseWin, 1)) + kv(t('a_smooth'), fmt(p.smooth, 1)) +
     kv(t('a_noise_det'), fmt(res.noise, 4) + ' mAU') + (function () { const b2 = baselineStats(r.data.t, r.data.uv); return b2 ? kv(t('a_noise_trend'), fmt(b2.noise, 4) + ' mAU') + kv(t('a_mean'), fmt(b2.mean, 3) + ' mAU') + kv(t('a_drift'), fmt(b2.drift10, 3) + ' mAU') + kv(t('a_drift_h'), fmt(b2.driftH, 3) + ' mAU/h') + kv(t('a_span'), fmt(b2.span, 3) + ' mAU') + astmRows(b2, (k, v) => kv(t(k), v)) : ''; })() + kv(t('a_points'), fmt(r.data.t.length, 0)) + kv(t('rep_manual'), S.aEdits.manual.length) + kv(t('rep_removed'), S.aEdits.removed.length) +
     kv(t('rep_saved'), esc(dateStr(r.analysis && r.analysis.at))) + kv(t('rep_version'), 'ChromaLog ' + APP_VERSION) + '</div>' +
+    '<p class="note">' + t('a_astm_note') + '</p>' +
     '<p><b>' + t('a_hash') + ' (SHA-256):</b> <span class="mono">' + esc(r.hash || '–') + '</span> – ' + t('hash_' + S.aHash) + '</p>' + (S.aHash === 'bad' ? '<div class="warn">' + t('t_hashbad') + '</div>' : '');
   h += '<div class="sign"><div>' + t('rep_by') + '</div><div>' + t('rep_date') + '</div><div>' + t('rep_sig') + '</div></div>' +
     '<div class="foot">' + t('rep_made') + ' ' + APP_VERSION + ' · ' + esc(dateStr(new Date().toISOString())) + '</div>';

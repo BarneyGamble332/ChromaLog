@@ -120,8 +120,10 @@ table.edit th { padding-left: 0; border: 0; }
 .list button:hover { border-color: var(--line); }
 .list button.sel { background: var(--bg); border-color: var(--line); border-left: 4px solid var(--accent); font-weight: 500; }
 h3 { font: 600 12px var(--f-disp); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 18px 0 6px; }
-.meta { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 13px; }
-.meta dt { color: var(--muted); } .meta dd { margin: 0; overflow-wrap: anywhere; }
+.meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px 24px; margin: 0; font-size: 14px; }
+.meta .fact { min-width: 0; } .meta .fact.wide { grid-column: 1 / -1; }
+.meta dt { color: var(--muted); font-size: 12px; margin-bottom: 2px; } .meta dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.meta .fact.wide dd { font-size: 12px; color: var(--muted); }
 .meta dd.mono { font-family: var(--f-mono); font-size: 12px; }
 .console { font: 12px/1.5 var(--f-mono); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 8px; height: 180px; overflow: auto; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .filebtn { display: inline-flex; }
